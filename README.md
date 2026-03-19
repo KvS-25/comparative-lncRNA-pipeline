@@ -102,6 +102,24 @@ Rscript scripts/05_plots.R
 
 ---
 
+## Automated Workflow (Snakemake)
+
+To run the entire pipeline automatically:
+```bash
+# Install Snakemake
+micromamba create -n snakemake -c conda-forge -c bioconda snakemake
+micromamba activate snakemake
+
+# Dry run to check workflow
+snakemake --dry-run --cores 4
+
+# Run locally
+snakemake --cores 4 --use-conda
+
+# Run on SLURM cluster
+snakemake --profile profiles/slurm --use-conda
+```
+
 ## Output Structure
 ```
 results/
