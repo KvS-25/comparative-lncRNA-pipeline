@@ -65,6 +65,10 @@ cd comparative-lncRNA-pipeline
 ```bash
 micromamba env create -f envs/alignment.yaml
 micromamba env create -f envs/goanalysis.yaml
+
+# Install remaining R packages
+micromamba activate goanalysis
+Rscript -e "install.packages(c('yaml', 'UpSetR'), repos='https://cloud.r-project.org')"
 ```
 
 **3. Set up config:**
