@@ -1,0 +1,56 @@
+# ============================================================
+# comparative-lncRNA-pipeline configuration file
+# Copy this file to config/config.yaml and fill in your paths
+# cp config/config.yaml.template config/config.yaml
+# ============================================================
+
+project_name: "your_project_name"
+species: "Your species name"
+
+# Paths
+genome:
+  reference: "/path/to/merge_transcripts.fasta"
+  gtf: "/path/to/merge_pine.gtf"
+  annotation: "/path/to/emapper_annotations.tsv.gz"
+
+samples:
+  directory: "/path/to/samples/directory"
+  names:
+    - SAMPLE1
+    - SAMPLE2
+    - SAMPLE3
+    - SAMPLE4
+
+# Output directories
+output:
+  base: "results"
+  paf: "results/paf"
+  bed: "results/bed"
+  fasta: "results/fasta"
+  go: "results/GO_analysis"
+  kegg: "results/KEGG"
+  plots: "results/plots"
+
+# SLURM settings
+slurm:
+  account: "your_slurm_account"
+  partition: "main"
+  threads: 20
+  time: "2-00:00:00"
+  email: "your@email.com"
+
+# Minimap2 parameters
+minimap2:
+  index_size: "4G"
+  preset: "splice"
+
+# GO enrichment parameters
+go:
+  pvalue_cutoff: 0.05
+  top_nodes: 50
+  algorithm: "weight01"
+  statistic: "fisher"
+
+# KEGG enrichment parameters
+kegg:
+  pvalue_cutoff: 0.05
