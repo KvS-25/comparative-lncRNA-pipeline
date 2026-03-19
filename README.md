@@ -143,7 +143,7 @@ If you use this pipeline please cite:
 
 ## Author
 
-Karandeep Singh — MSc Bioinformatics, Umeå University  
+Karanveer Singh — MSc Molecular Biology, Umeå University  
 GitHub: [KvS-25](https://github.com/KvS-25)
 
 ---
