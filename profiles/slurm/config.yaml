@@ -1,0 +1,11 @@
+executor: slurm
+jobs: 10
+use-conda: true
+latency-wait: 60
+rerun-incomplete: true
+printshellcmds: true
+default-resources:
+  slurm_account: "{config[slurm][account]}"
+  slurm_partition: "{config[slurm][partition]}"
+  runtime: "60"
+  mem_mb: 8000
