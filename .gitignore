@@ -3,6 +3,7 @@ config/config.yaml
 
 # Large data files - too big for GitHub
 *.fasta
+!test_data/**/*.fasta
 *.fastq
 *.paf
 *.bam
