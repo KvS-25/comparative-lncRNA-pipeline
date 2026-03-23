@@ -1,6 +1,7 @@
 # comparative-lncRNA-pipeline
 
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
+![Version](https://img.shields.io/badge/version-1.0.0-blue)
 ![Snakemake](https://img.shields.io/badge/workflow-Snakemake-1a9c3e?logo=snakemake)
 ![Language: R](https://img.shields.io/badge/language-R-276DC3?logo=r)
 ![Language: Bash](https://img.shields.io/badge/language-Bash-4EAA25?logo=gnubash)
@@ -143,15 +144,7 @@ results/
 
 ## Citation
 
-If you use this pipeline please cite:
-
-- **Plant LncRNA Pipeline v2**: Tian, X.-C., Nie, S., Domingues, D., Rossi Paschoal, A., Jiang, L.-B. and Mao, J.-F. (2025). PlantLncBoost: key features for plant lncRNA identification and significant improvement in accuracy and generalization. *New Phytologist*. https://doi.org/10.1111/nph.70211
-- **minimap2**: Li, H. (2018). Bioinformatics, 34(18), 3094–3100. doi:10.1093/bioinformatics/bty191
-- **bedtools**: Quinlan, A.R. and Hall, I.M. (2010). Bioinformatics, 26(6), 841–842. doi:10.1093/bioinformatics/btq033
-- **topGO**: Alexa, A., Rahnenführer, J. and Lengauer, T. (2006). Bioinformatics, 22(13), 1600–1607. doi:10.1093/bioinformatics/btl140
-- **StringTie**: Pertea, M. et al. (2015). Nature Biotechnology, 33(3), 290–295. doi:10.1038/nbt.3122
-- **eggNOG-mapper**: Cantalapiedra, C.P. et al. (2021). Molecular Biology and Evolution, 38(12), 5825–5829. doi:10.1093/molbev/msab293
-- **ggplot2**: Wickham, H. (2016). Springer-Verlag, New York.
+Please see [CITATIONS.md](CITATIONS.md) for full citation information.
 
 ---
 
