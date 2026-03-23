@@ -1,0 +1,95 @@
+<svg width="100%" viewBox="0 0 680 820" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M2 1L8 5L2 9" fill="none" stroke="#666" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+  </defs>
+
+  <!-- Input -->
+  <rect x="190" y="30" width="300" height="52" rx="8" fill="#9FE1CB" stroke="#0F6E56" stroke-width="0.5"/>
+  <text font-family="Arial" font-size="14" font-weight="500" x="340" y="52" text-anchor="middle" dominant-baseline="central" fill="#085041">Candidate lncRNA FASTAs</text>
+  <text font-family="Arial" font-size="12" x="340" y="70" text-anchor="middle" dominant-baseline="central" fill="#0F6E56">PCN, PCR, PDN, PDR</text>
+
+  <line x1="340" y1="82" x2="340" y2="112" stroke="#666" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- Step 1 -->
+  <rect x="160" y="112" width="360" height="52" rx="8" fill="#AFA9EC" stroke="#534AB7" stroke-width="0.5"/>
+  <text font-family="Arial" font-size="14" font-weight="500" x="340" y="134" text-anchor="middle" dominant-baseline="central" fill="#26215C">Step 1 — Alignment (SLURM)</text>
+  <text font-family="Arial" font-size="12" x="340" y="152" text-anchor="middle" dominant-baseline="central" fill="#3C3489">minimap2 -x splice → PAF → BED</text>
+  <rect x="40" y="118" width="100" height="22" rx="4" stroke="#999" stroke-width="0.5" fill="none"/>
+  <text font-family="Arial" font-size="11" x="90" y="133" text-anchor="middle" fill="#666">SLURM cluster</text>
+
+  <line x1="340" y1="164" x2="340" y2="194" stroke="#666" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- Step 2 -->
+  <rect x="160" y="194" width="360" height="52" rx="8" fill="#AFA9EC" stroke="#534AB7" stroke-width="0.5"/>
+  <text font-family="Arial" font-size="14" font-weight="500" x="340" y="216" text-anchor="middle" dominant-baseline="central" fill="#26215C">Step 2 — Multi-sample comparison</text>
+  <text font-family="Arial" font-size="12" x="340" y="234" text-anchor="middle" dominant-baseline="central" fill="#3C3489">bedtools multiinter → region categories</text>
+  <rect x="40" y="200" width="100" height="22" rx="4" stroke="#999" stroke-width="0.5" fill="none"/>
+  <text font-family="Arial" font-size="11" x="90" y="215" text-anchor="middle" fill="#666">login node</text>
+
+  <!-- Split to 4 boxes -->
+  <line x1="340" y1="246" x2="340" y2="276" stroke="#666" stroke-width="1"/>
+  <line x1="100" y1="276" x2="580" y2="276" stroke="#666" stroke-width="1"/>
+  <line x1="100" y1="276" x2="100" y2="306" stroke="#666" stroke-width="1" marker-end="url(#arrow)"/>
+  <line x1="247" y1="276" x2="247" y2="306" stroke="#666" stroke-width="1" marker-end="url(#arrow)"/>
+  <line x1="433" y1="276" x2="433" y2="306" stroke="#666" stroke-width="1" marker-end="url(#arrow)"/>
+  <line x1="580" y1="276" x2="580" y2="306" stroke="#666" stroke-width="1" marker-end="url(#arrow)"/>
+
+  <!-- 4 region boxes -->
+  <rect x="40" y="306" width="120" height="44" rx="8" fill="#C0DD97" stroke="#3B6D11" stroke-width="0.5"/>
+  <text font-family="Arial" font-size="13" font-weight="500" x="100" y="324" text-anchor="middle" dominant-baseline="central" fill="#173404">Conserved</text>
+  <text font-family="Arial" font-size="11" x="100" y="340" text-anchor="middle" dominant-baseline="central" fill="#27500A">239,446 regions</text>
+
+  <rect x="187" y="306" width="120" height="44" rx="8" fill="#FAC775" stroke="#854F0B" stroke-width="0.5"/>
+  <text font-family="Arial" font-size="13" font-weight="500" x="247" y="324" text-anchor="middle" dominant-baseline="central" fill="#412402">Needle / Root</text>
+  <text font-family="Arial" font-size="11" x="247" y="340" text-anchor="middle" dominant-baseline="central" fill="#633806">tissue-specific</text>
+
+  <rect x="373" y="306" width="120" height="44" rx="8" fill="#F5C4B3" stroke="#993C1D" stroke-width="0.5"/>
+  <text font-family="Arial" font-size="13" font-weight="500" x="433" y="324" text-anchor="middle" dominant-baseline="central" fill="#4A1B0C">Cold / Drought</text>
+  <text font-family="Arial" font-size="11" x="433" y="340" text-anchor="middle" dominant-baseline="central" fill="#712B13">condition-specific</text>
+
+  <rect x="520" y="306" width="120" height="44" rx="8" fill="#B5D4F4" stroke="#185FA5" stroke-width="0.5"/>
+  <text font-family="Arial" font-size="13" font-weight="500" x="580" y="324" text-anchor="middle" dominant-baseline="central" fill="#042C53">Sample-specific</text>
+  <text font-family="Arial" font-size="11" x="580" y="340" text-anchor="middle" dominant-baseline="central" fill="#0C447C">PCN/PCR/PDN/PDR</text>
+
+  <!-- Merge back -->
+  <line x1="247" y1="350" x2="247" y2="390" stroke="#666" stroke-width="1"/>
+  <line x1="433" y1="350" x2="433" y2="390" stroke="#666" stroke-width="1"/>
+  <line x1="247" y1="390" x2="433" y2="390" stroke="#666" stroke-width="1"/>
+  <line x1="340" y1="390" x2="340" y2="420" stroke="#666" stroke-width="1" marker-end="url(#arrow)"/>
+
+  <!-- Steps 3-6 -->
+  <rect x="160" y="420" width="360" height="52" rx="8" fill="#AFA9EC" stroke="#534AB7" stroke-width="0.5"/>
+  <text font-family="Arial" font-size="14" font-weight="500" x="340" y="442" text-anchor="middle" dominant-baseline="central" fill="#26215C">Step 3 — Sequence extraction</text>
+  <text font-family="Arial" font-size="12" x="340" y="460" text-anchor="middle" dominant-baseline="central" fill="#3C3489">bedtools getfasta → FASTA per category</text>
+  <rect x="40" y="426" width="100" height="22" rx="4" stroke="#999" stroke-width="0.5" fill="none"/>
+  <text font-family="Arial" font-size="11" x="90" y="441" text-anchor="middle" fill="#666">login node</text>
+  <line x1="340" y1="472" x2="340" y2="502" stroke="#666" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <rect x="160" y="502" width="360" height="52" rx="8" fill="#AFA9EC" stroke="#534AB7" stroke-width="0.5"/>
+  <text font-family="Arial" font-size="14" font-weight="500" x="340" y="524" text-anchor="middle" dominant-baseline="central" fill="#26215C">Step 4 — GO enrichment</text>
+  <text font-family="Arial" font-size="12" x="340" y="542" text-anchor="middle" dominant-baseline="central" fill="#3C3489">topGO, Fisher's exact — BP / MF / CC</text>
+  <rect x="40" y="508" width="100" height="22" rx="4" stroke="#999" stroke-width="0.5" fill="none"/>
+  <text font-family="Arial" font-size="11" x="90" y="523" text-anchor="middle" fill="#666">login node</text>
+  <line x1="340" y1="554" x2="340" y2="584" stroke="#666" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <rect x="160" y="584" width="360" height="52" rx="8" fill="#AFA9EC" stroke="#534AB7" stroke-width="0.5"/>
+  <text font-family="Arial" font-size="14" font-weight="500" x="340" y="606" text-anchor="middle" dominant-baseline="central" fill="#26215C">Step 5 — KEGG enrichment</text>
+  <text font-family="Arial" font-size="12" x="340" y="624" text-anchor="middle" dominant-baseline="central" fill="#3C3489">Fisher's exact test → pathway annotation</text>
+  <rect x="40" y="590" width="100" height="22" rx="4" stroke="#999" stroke-width="0.5" fill="none"/>
+  <text font-family="Arial" font-size="11" x="90" y="605" text-anchor="middle" fill="#666">login node</text>
+  <line x1="340" y1="636" x2="340" y2="666" stroke="#666" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <rect x="160" y="666" width="360" height="52" rx="8" fill="#AFA9EC" stroke="#534AB7" stroke-width="0.5"/>
+  <text font-family="Arial" font-size="14" font-weight="500" x="340" y="688" text-anchor="middle" dominant-baseline="central" fill="#26215C">Step 6 — Visualisation</text>
+  <text font-family="Arial" font-size="12" x="340" y="706" text-anchor="middle" dominant-baseline="central" fill="#3C3489">ggplot2 — bubble plots, bar plots, heatmap</text>
+  <rect x="40" y="672" width="100" height="22" rx="4" stroke="#999" stroke-width="0.5" fill="none"/>
+  <text font-family="Arial" font-size="11" x="90" y="687" text-anchor="middle" fill="#666">login node</text>
+  <line x1="340" y1="718" x2="340" y2="748" stroke="#666" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- Output -->
+  <rect x="190" y="748" width="300" height="52" rx="8" fill="#9FE1CB" stroke="#0F6E56" stroke-width="0.5"/>
+  <text font-family="Arial" font-size="14" font-weight="500" x="340" y="770" text-anchor="middle" dominant-baseline="central" fill="#085041">Results</text>
+  <text font-family="Arial" font-size="12" x="340" y="788" text-anchor="middle" dominant-baseline="central" fill="#0F6E56">GO/KEGG enrichment + publication figures</text>
+</svg>

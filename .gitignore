@@ -36,3 +36,8 @@ __pycache__/
 
 # Snakemake cache
 .snakemake/
+
+# Allow images folder
+!images/
+!images/*.svg
+!images/*.png
