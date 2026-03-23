@@ -1,5 +1,12 @@
 # comparative-lncRNA-pipeline
 
+![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
+![Snakemake](https://img.shields.io/badge/workflow-Snakemake-1a9c3e?logo=snakemake)
+![Language: R](https://img.shields.io/badge/language-R-276DC3?logo=r)
+![Language: Bash](https://img.shields.io/badge/language-Bash-4EAA25?logo=gnubash)
+![Platform: HPC](https://img.shields.io/badge/platform-HPC%20SLURM-orange)
+![Species: Conifer](https://img.shields.io/badge/species-conifer-2e8b57)
+
 A comparative genomics pipeline for identifying and characterising tissue-specific and stress-responsive long non-coding RNAs (lncRNAs) in conifers using minimap2, bedtools, and GO/KEGG enrichment analysis.
 
 Developed as part of an MSc thesis at Umeå University, initially applied to *Pinus sylvestris* under cold and drought stress conditions across needle and root tissues.
@@ -20,30 +27,8 @@ This pipeline takes candidate lncRNA transcript sequences (e.g. from the [Plant 
 ---
 
 ## Pipeline Overview
-```
-Candidate lncRNA FASTAs
-        │
-        ▼
-01_align.sh          ── minimap2 splice alignment ──► PAF files
-        │
-        ▼
-        │            ── PAF to BED conversion    ──► BED files
-        │
-        ▼
-02_multiinter.sh     ── bedtools multiinter      ──► Region categories
-        │                                            (conserved, tissue-specific,
-        │                                             condition-specific)
-        ▼
-03_go_analysis.R     ── topGO enrichment         ──► GO results (BP/MF/CC)
-        │
-        ▼
-04_kegg_analysis.R   ── Fisher's exact test      ──► KEGG pathway results
-        │
-        ▼
-05_plots.R           ── ggplot2 / UpSetR         ──► Publication figures
-```
 
----
+![Pipeline Flowchart](images/pipeline_flowchart.svg)
 
 ## Requirements
 
