@@ -6,11 +6,11 @@
 ![Language: R](https://img.shields.io/badge/language-R-276DC3?logo=r)
 ![Language: Bash](https://img.shields.io/badge/language-Bash-4EAA25?logo=gnubash)
 ![Platform: HPC](https://img.shields.io/badge/platform-HPC%20SLURM-orange)
-![Species: Conifer](https://img.shields.io/badge/species-conifer-2e8b57)
+![Species: Conifer](https://img.shields.io/badge/species-pine%20%7C%20spruce-2e8b57)
 
 A comparative genomics pipeline for identifying and characterising tissue-specific and stress-responsive long non-coding RNAs (lncRNAs) in conifers using minimap2, bedtools, and GO/KEGG enrichment analysis.
 
-Developed as part of an MSc thesis at Umeå University, initially applied to *Pinus sylvestris* under cold and drought stress conditions across needle and root tissues.
+Developed as part of an MSc thesis at Umeå University, initially applied to *Pinus sylvestris* under cold and drought stress conditions across needle and root tissues. Being extended to *Picea abies* (Norway spruce) including stress response and embryogenesis samples.
 
 **Contact Information:**
 - Email: kvs.ms.2512@gmail.com
@@ -26,6 +26,7 @@ Developed as part of an MSc thesis at Umeå University, initially applied to *Pi
 - [Usage](#usage)
 - [Automated Workflow (Snakemake)](#automated-workflow-snakemake)
 - [Output Structure](#output-structure)
+- [Multi-species Analysis](#multi-species-analysis)
 - [Citation](#citation)
 - [License](#license)
 
@@ -138,6 +139,56 @@ results/
 ├── root_specific.bed
 ├── cold_specific.bed
 └── drought_specific.bed
+```
+
+---
+
+## Multi-species Analysis
+
+The pipeline is designed to be species-agnostic. It has been applied to *Pinus sylvestris* and is being extended to *Picea abies* (Norway spruce) for both stress response and embryogenesis comparisons.
+
+### Running for a new species
+
+1. Obtain candidate lncRNA FASTAs using [Plant LncRNA Pipeline v2](https://github.com/xuechantian/Plant-LncRNA-pipeline-v2)
+2. Obtain a reference transcriptome and eggNOG-mapper annotation for your species
+3. Copy and update the config:
+```bash
+cp config/config.yaml.template config/config.yaml
+# Update species, genome paths, sample names and output directory
+```
+
+4. Run as normal — the pipeline requires no other changes
+
+### Suggested sample naming convention
+
+| Code | Meaning |
+|------|---------|
+| PCN | Pine Cold Needle |
+| PCR | Pine Cold Root |
+| PDN | Pine Drought Needle |
+| PDR | Pine Drought Root |
+| SCN | Spruce Cold Needle |
+| SCR | Spruce Cold Root |
+| SDN | Spruce Drought Needle |
+| SDR | Spruce Drought Root |
+| SZE | Spruce Zygotic Embryo |
+| SSE | Spruce Somatic Embryo |
+
+> **Note for embryogenesis or other experimental designs**: The `scripts/02_multiinter.sh`
+> awk filters are currently designed for a 2×2 stress/tissue design. For other designs
+> update the filter logic to match your sample columns. See `docs/usage.md` for details.
+
+### Cross-species comparison
+
+To compare pine and spruce results:
+- Run the pipeline separately for each species with separate output directories
+- GO and KEGG enrichment results can be compared directly between species
+- For a combined multi-sample analysis, use all 8 BED files in `scripts/02_multiinter.sh`
+```bash
+bedtools multiinter \
+    -i results_pine/bed/*.bed results_spruce/bed/*.bed \
+    -names PCN PCR PDN PDR SCN SCR SDN SDR \
+    > results_combined/multiinter_output.bed
 ```
 
 ---
