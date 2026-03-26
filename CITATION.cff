@@ -1,0 +1,23 @@
+cff-version: 1.2.0
+message: "If you use this pipeline, please cite it using the metadata below."
+type: software
+title: "comparative-lncRNA-pipeline"
+abstract: "A comparative genomics pipeline for identifying and characterising tissue-specific and stress-responsive lncRNAs in conifers using minimap2, bedtools, and GO/KEGG enrichment analysis."
+authors:
+  - family-names: Singh
+    given-names: Karanveer
+    email: kvs.ms.2512@gmail.com
+    affiliation: "Umeå University"
+repository-code: "https://github.com/KvS-25/comparative-lncRNA-pipeline"
+license: MIT
+version: 1.0.0
+date-released: "2026-03-26"
+keywords:
+  - bioinformatics
+  - lncrna
+  - conifer
+  - pinus-sylvestris
+  - stress-response
+  - snakemake
+  - go-enrichment
+  - kegg
