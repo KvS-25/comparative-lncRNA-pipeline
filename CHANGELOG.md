@@ -1,6 +1,6 @@
 # Changelog
 
-## v1.0.0 — 2026-03-XX
+## v1.0.0 — 2026-03-19
 
 ### Initial release
 
@@ -14,3 +14,11 @@
 - Snakemake workflow with SLURM integration
 - Synthetic test dataset
 - Config template for easy setup
+
+## v1.5.0 - 2026-04-01
+
+### Addition of spruce
+
+-Addition of spruce dataset rules and outputs to config and template
+-Updated Snakefile to allow choosing of spieces to run
+-Updated scripts with revisied directory structure and logic
