@@ -69,6 +69,10 @@ rule all:
         os.path.join(OUT_BASE, "multiinter_output.bed"),
         os.path.join(OUT_BASE, "conserved.bed"),
         expand(os.path.join(OUT_BASE, "{cat}.bed"),                        cat=CATEGORIES),
+        os.path.join(OUT_GO,   "gene_to_GO.txt"),
+        os.path.join(OUT_GO,   "mstrg_to_refgene.txt"),
+        os.path.join(OUT_KEGG, "gene_to_KEGG.txt"),
+        os.path.join(OUT_KEGG, "kegg_pathway_names.txt"),
         expand(os.path.join(OUT_GO,   "{cat}_BP_GO_enrichment.txt"),       cat=CATEGORIES),
         expand(os.path.join(OUT_KEGG, "{cat}_KEGG_enrichment.txt"),        cat=CATEGORIES),
         os.path.join(OUT_PLOTS, "upset_plot.png"),
@@ -219,15 +223,35 @@ rule multiinter:
             open(output.zygotic_embryo_specific, 'w').close()
 
 # ============================================================
-# Rule: go_analysis (login node)
+# Rule: build_go_maps — build gene→GO and MSTRG maps once
+#       from the full annotation (no wildcard, runs once)
+# ============================================================
+rule build_go_maps:
+    input:
+        annotation = ANNOTATION,
+    output:
+        gene_go = os.path.join(OUT_GO, "gene_to_GO.txt"),
+        mstrg   = os.path.join(OUT_GO, "mstrg_to_refgene.txt"),
+    conda: "envs/goanalysis.yaml"
+    resources:
+        runtime = 60,
+    log:
+        os.path.join(LOGS_DIR, "build_go_maps.log"),
+    shell:
+        "Rscript scripts/03_go_analysis.R "
+        "build_maps {input.annotation} "
+        "{output.gene_go} {output.mstrg} "
+        "> {log} 2>&1"
+
+# ============================================================
+# Rule: go_analysis — per-category GO enrichment
 # ============================================================
 rule go_analysis:
     input:
-        bed        = os.path.join(OUT_BASE, "{cat}.bed"),
-        annotation = ANNOTATION,
-    output:
+        bed      = os.path.join(OUT_BASE, "{cat}.bed"),
         gene_go  = os.path.join(OUT_GO, "gene_to_GO.txt"),
         mstrg    = os.path.join(OUT_GO, "mstrg_to_refgene.txt"),
+    output:
         refgenes = os.path.join(OUT_GO, "{cat}_refgenes.txt"),
         result   = os.path.join(OUT_GO, "{cat}_BP_GO_enrichment.txt"),
     conda: "envs/goanalysis.yaml"
@@ -237,21 +261,40 @@ rule go_analysis:
         os.path.join(LOGS_DIR, "go_{cat}.log"),
     shell:
         "Rscript scripts/03_go_analysis.R "
-        "{input.bed} {input.annotation} "
-        "{output.gene_go} {output.mstrg} {output.refgenes} {output.result} "
+        "enrich {input.bed} {input.gene_go} {input.mstrg} "
+        "{output.refgenes} {output.result} "
         "> {log} 2>&1"
 
 # ============================================================
-# Rule: kegg_analysis (login node)
+# Rule: build_kegg_maps — build gene→KEGG map once
 # ============================================================
-rule kegg_analysis:
+rule build_kegg_maps:
     input:
-        refgenes   = os.path.join(OUT_GO,   "{cat}_refgenes.txt"),
         annotation = ANNOTATION,
     output:
         gene_kegg     = os.path.join(OUT_KEGG, "gene_to_KEGG.txt"),
         pathway_names = os.path.join(OUT_KEGG, "kegg_pathway_names.txt"),
-        result        = os.path.join(OUT_KEGG, "{cat}_KEGG_enrichment.txt"),
+    conda: "envs/goanalysis.yaml"
+    resources:
+        runtime = 60,
+    log:
+        os.path.join(LOGS_DIR, "build_kegg_maps.log"),
+    shell:
+        "Rscript scripts/04_kegg_analysis.R "
+        "build_maps {input.annotation} "
+        "{output.gene_kegg} {output.pathway_names} "
+        "> {log} 2>&1"
+
+# ============================================================
+# Rule: kegg_analysis — per-category KEGG enrichment
+# ============================================================
+rule kegg_analysis:
+    input:
+        refgenes      = os.path.join(OUT_GO,   "{cat}_refgenes.txt"),
+        gene_kegg     = os.path.join(OUT_KEGG, "gene_to_KEGG.txt"),
+        pathway_names = os.path.join(OUT_KEGG, "kegg_pathway_names.txt"),
+    output:
+        result = os.path.join(OUT_KEGG, "{cat}_KEGG_enrichment.txt"),
     conda: "envs/goanalysis.yaml"
     resources:
         runtime = 120,
@@ -259,8 +302,8 @@ rule kegg_analysis:
         os.path.join(LOGS_DIR, "kegg_{cat}.log"),
     shell:
         "Rscript scripts/04_kegg_analysis.R "
-        "{input.refgenes} {input.annotation} "
-        "{output.gene_kegg} {output.pathway_names} {output.result} "
+        "enrich {input.refgenes} {input.gene_kegg} {input.pathway_names} "
+        "{output.result} "
         "> {log} 2>&1"
 
 # ============================================================
