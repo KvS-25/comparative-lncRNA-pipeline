@@ -1,167 +1,209 @@
 # ============================================================
 # Script 05: Generate all visualisation plots
 #
-# Usage: Rscript scripts/05_plots.R
-# Requires: config/config.yaml, results from 03 and 04
-# Environment: goanalysis (R, ggplot2, reshape2, UpSetR)
+# Reads config/config.yaml. Produces:
+#   - UpSet plot (all samples)
+#   - Region counts bar chart
+#   - GO enrichment bar plots per category
+#   - KEGG bubble plot per category
+#
+# Usage:
+#   micromamba activate goanalysis
+#   Rscript scripts/05_plots.R
 # ============================================================
 
-library(yaml)
-library(ggplot2)
-library(reshape2)
-library(UpSetR)
+suppressPackageStartupMessages({
+  library(yaml)
+  library(ggplot2)
+  library(UpSetR)
+})
 
-# ---- Load config ----
-config <- yaml.load_file("config/config.yaml")
-
-OUT_BASE <- config$output$base
-OUT_GO   <- config$output$go
-OUT_KEGG <- config$output$kegg
+# ---- Load config --------------------------------------------
+config    <- yaml.load_file("config/config.yaml")
+SAMPLES   <- config$samples$names
+OUT_BASE  <- config$output$base
+OUT_GO    <- config$output$go
+OUT_KEGG  <- config$output$kegg
 OUT_PLOTS <- config$output$plots
 
-dir.create(OUT_PLOTS, recursive=TRUE, showWarnings=FALSE)
+dir.create(OUT_PLOTS, recursive = TRUE, showWarnings = FALSE)
+dir.create(config$slurm$logs, recursive = TRUE, showWarnings = FALSE)
 
-categories <- c("needle_specific", "root_specific",
-                 "cold_specific", "drought_specific")
+log_file <- file.path(config$slurm$logs, "plots.log")
+con <- file(log_file, open = "at")
+msg <- function(...) {
+  m <- paste0("[", format(Sys.time()), "] ", ...)
+  message(m); cat(m, "\n", file = con)
+}
 
-category_colors <- c(
-  "needle_specific" = "#C6EFCE",
-  "root_specific"   = "#FFEB9C",
-  "cold_specific"   = "#BDD7EE",
-  "drought_specific"= "#FCE4D6"
+# ---- Category colours (extended for embryo) -----------------
+cat_colors <- c(
+  "needle_specific"         = "#C6EFCE",
+  "root_specific"           = "#FFEB9C",
+  "cold_specific"           = "#BDD7EE",
+  "drought_specific"        = "#FCE4D6",
+  "somatic_embryo_specific" = "#E2CFEE",
+  "zygotic_embryo_specific" = "#FFD6CC"
 )
+
+# Active categories (non-empty BED files)
+all_cats <- names(cat_colors)
+cats <- Filter(function(cat) {
+  f <- file.path(OUT_BASE, paste0(cat, ".bed"))
+  file.exists(f) && file.info(f)$size > 0
+}, all_cats)
+
+msg("Samples: ", paste(SAMPLES, collapse = ", "))
+msg("Categories: ", paste(cats, collapse = ", "))
 
 # ============================================================
 # Plot 1: UpSet plot
 # ============================================================
-cat("[", format(Sys.time()), "] Generating UpSet plot\n")
+msg("Generating UpSet plot")
 
-multiinter <- read.table(file.path(OUT_BASE, "multiinter_output.bed"),
-                          header=FALSE, sep="\t")
-colnames(multiinter)[6:9] <- config$samples$names
+multiinter_file <- file.path(OUT_BASE, "multiinter_output.bed")
+if (file.exists(multiinter_file) && file.info(multiinter_file)$size > 0) {
+  mi <- read.table(multiinter_file, header = FALSE, sep = "\t")
 
-png(file.path(OUT_PLOTS, "upset_plot.png"),
-    width=1400, height=900, res=150, pointsize=12)
-par(mar=c(6, 6, 4, 2))
-upset(multiinter[,6:9],
-      sets         = config$samples$names,
-      mb.ratio     = c(0.65, 0.35),
-      order.by     = "freq",
-      main.bar.color = "steelblue",
-      text.scale   = c(1.5, 1.2, 1.5, 1.3, 1.5, 0.9),
-      point.size   = 3,
-      line.size    = 1,
-      shade.color  = "lightblue",
-      shade.alpha  = 0.3,
-      matrix.color = "gray30",
-      mainbar.y.label = "Number of Genomic Regions",
-      sets.x.label    = "Total Regions per Sample")
-dev.off()
+  n_fixed <- 5   # chr, start, end, count, names
+  n_samp  <- length(SAMPLES)
+
+  if (ncol(mi) >= n_fixed + n_samp) {
+    samp_cols <- mi[, (n_fixed + 1):(n_fixed + n_samp)]
+    colnames(samp_cols) <- SAMPLES
+
+    png(file.path(OUT_PLOTS, "upset_plot.png"),
+        width = max(1400, 200 * n_samp), height = 900, res = 150)
+    print(upset(
+      samp_cols,
+      sets     = SAMPLES,
+      mb.ratio = c(0.65, 0.35),
+      order.by = "freq",
+      text.scale = 1.5,
+      point.size = 3
+    ))
+    dev.off()
+    msg("  upset_plot.png done")
+  } else {
+    msg("  WARNING: multiinter columns don't match sample count — skipping UpSet")
+  }
+} else {
+  msg("  WARNING: multiinter_output.bed missing or empty — skipping UpSet")
+}
 
 # ============================================================
 # Plot 2: Region counts bar chart
 # ============================================================
-cat("[", format(Sys.time()), "] Generating region counts bar chart\n")
+msg("Generating region counts bar chart")
 
-region_files <- c(
-  "Conserved"        = "conserved.bed",
-  "Needle-specific"  = "needle_specific.bed",
-  "Root-specific"    = "root_specific.bed",
-  "Cold-specific"    = "cold_specific.bed",
-  "Drought-specific" = "drought_specific.bed"
+bed_files <- c(
+  "conserved.bed",
+  paste0(cats, ".bed")
 )
 
-counts_data <- data.frame(
-  Category = names(region_files),
-  Count    = sapply(region_files, function(f) {
-    fp <- file.path(OUT_BASE, f)
-    if (file.exists(fp)) as.integer(system(paste("wc -l <", fp), intern=TRUE)) else 0
-  }),
-  Group = c("Conserved", "Tissue", "Tissue", "Condition", "Condition")
+counts <- sapply(bed_files, function(f) {
+  full <- file.path(OUT_BASE, f)
+  if (file.exists(full) && file.info(full)$size > 0) {
+    nrow(read.table(full, header = FALSE, sep = "\t"))
+  } else {
+    0L
+  }
+})
+
+count_df <- data.frame(
+  category = sub("\\.bed$", "", names(counts)),
+  count    = counts,
+  stringsAsFactors = FALSE
 )
 
-counts_data$Category <- factor(counts_data$Category, levels=rev(counts_data$Category))
+count_df$color <- ifelse(
+  count_df$category == "conserved",
+  "#D9D9D9",
+  cat_colors[count_df$category]
+)
+count_df$color[is.na(count_df$color)] <- "#CCCCCC"
 
-p <- ggplot(counts_data, aes(x=Count, y=Category, fill=Group)) +
-  geom_bar(stat="identity", width=0.7) +
-  geom_text(aes(label=format(Count, big.mark=",")), hjust=-0.1, size=3.5) +
-  scale_fill_manual(values=c(
-    "Conserved" = "#525252",
-    "Tissue"    = "#2CA25F",
-    "Condition" = "#2B8CBE"
-  )) +
-  scale_x_continuous(
-    labels=function(x) format(x, big.mark=",", scientific=FALSE),
-    expand=expansion(mult=c(0, 0.15))) +
-  labs(title="Genomic Regions by Category",
-       x="Number of Regions", y="", fill="Category Type") +
-  theme_bw() +
-  theme(axis.text.y=element_text(size=11),
-        plot.title=element_text(hjust=0.5, face="bold", size=13))
+p <- ggplot(count_df, aes(x = reorder(category, -count), y = count, fill = category)) +
+  geom_col(fill = count_df$color, color = "grey40", width = 0.7) +
+  geom_text(aes(label = count), vjust = -0.4, size = 3.5) +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 35, hjust = 1, size = 10)) +
+  labs(title = paste("Region counts —", config$species),
+       x = NULL, y = "Number of regions") +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.12)))
 
 ggsave(file.path(OUT_PLOTS, "region_counts_bar.png"),
-       plot=p, width=10, height=7, dpi=300)
+       plot = p, width = max(8, 1.5 * length(bed_files)), height = 5, dpi = 150)
+msg("  region_counts_bar.png done")
 
 # ============================================================
-# Plot 3: GO bar plots per category
+# Plot 3: GO enrichment bar plots per category
 # ============================================================
-cat("[", format(Sys.time()), "] Generating GO bar plots\n")
+msg("Generating GO bar plots")
 
-make_go_bar <- function(category, title, filename) {
-  bp <- read.table(file.path(OUT_GO, paste0(category, "_BP_GO_enrichment.txt")),
-                   header=TRUE, sep="\t")
-  mf <- read.table(file.path(OUT_GO, paste0(category, "_MF_GO_enrichment.txt")),
-                   header=TRUE, sep="\t")
-  cc <- read.table(file.path(OUT_GO, paste0(category, "_CC_GO_enrichment.txt")),
-                   header=TRUE, sep="\t")
+for (cat in cats) {
+  go_file <- file.path(OUT_GO, paste0(cat, "_BP_GO_enrichment.txt"))
+  if (!file.exists(go_file) || file.info(go_file)$size == 0) next
 
-  bp <- head(bp[order(bp$weight01), ], 5)
-  mf <- head(mf[order(mf$weight01), ], 5)
-  cc <- head(cc[order(cc$weight01), ], 5)
+  go_df <- read.table(go_file, header = TRUE, sep = "\t", quote = "")
+  if (nrow(go_df) == 0) next
 
-  bp$Domain <- "Biological Process"
-  mf$Domain <- "Molecular Function"
-  cc$Domain <- "Cellular Component"
+  go_df$pvalue <- as.numeric(go_df$pvalue)
+  go_df <- go_df[!is.na(go_df$pvalue), ]
+  go_df <- head(go_df[order(go_df$pvalue), ], 20)
+  go_df$Term <- factor(go_df$Term, levels = rev(go_df$Term))
 
-  combined <- rbind(
-    data.frame(Term=bp$Term, pvalue=bp$weight01, Count=bp$Significant, Domain=bp$Domain),
-    data.frame(Term=mf$Term, pvalue=mf$weight01, Count=mf$Significant, Domain=mf$Domain),
-    data.frame(Term=cc$Term, pvalue=cc$weight01, Count=cc$Significant, Domain=cc$Domain)
-  )
+  fill_col <- ifelse(!is.na(cat_colors[cat]), cat_colors[cat], "#CCCCCC")
 
-  combined$Term <- factor(combined$Term,
-    levels=combined$Term[order(combined$Domain, combined$pvalue, decreasing=TRUE)])
-  combined$Domain <- factor(combined$Domain,
-    levels=c("Biological Process", "Molecular Function", "Cellular Component"))
+  p_go <- ggplot(go_df, aes(x = Term, y = -log10(pvalue))) +
+    geom_col(fill = fill_col, color = "grey40", width = 0.7) +
+    coord_flip() +
+    theme_classic() +
+    labs(title = paste("GO enrichment (BP):", gsub("_", " ", cat)),
+         subtitle = config$species,
+         x = NULL, y = "-log10(p-value)") +
+    theme(axis.text.y = element_text(size = 8))
 
-  p <- ggplot(combined, aes(x=-log10(pvalue), y=Term, fill=Domain)) +
-    geom_bar(stat="identity", width=0.7) +
-    geom_text(aes(label=Count), hjust=-0.2, size=3.5) +
-    scale_fill_manual(values=c(
-      "Biological Process" = "#4575B4",
-      "Molecular Function" = "#D73027",
-      "Cellular Component" = "#1A9850"
-    )) +
-    facet_wrap(~Domain, scales="free_y", ncol=1) +
-    labs(title=title, x="-log10(p-value)", y="") +
-    theme_bw() +
-    theme(strip.background=element_rect(fill="#F0F0F0"),
-          strip.text=element_text(face="bold", size=11),
-          axis.text.y=element_text(size=10),
-          plot.title=element_text(hjust=0.5, face="bold", size=13),
-          legend.position="none") +
-    xlim(0, max(-log10(combined$pvalue)) * 1.15)
-
-  ggsave(filename, plot=p, width=10, height=12, dpi=300)
+  out_name <- paste0("GO_bar_", cat, ".png")
+  ggsave(file.path(OUT_PLOTS, out_name),
+         plot = p_go, width = 10, height = 6, dpi = 150)
+  msg("  ", out_name, " done")
 }
 
-make_go_bar("needle_specific", "GO Enrichment - Needle Specific",
-            file.path(OUT_PLOTS, "GO_bar_needle.png"))
-make_go_bar("root_specific",   "GO Enrichment - Root Specific",
-            file.path(OUT_PLOTS, "GO_bar_root.png"))
-make_go_bar("cold_specific",   "GO Enrichment - Cold Specific",
-            file.path(OUT_PLOTS, "GO_bar_cold.png"))
-make_go_bar("drought_specific","GO Enrichment - Drought Specific",
-            file.path(OUT_PLOTS, "GO_bar_drought.png"))
+# ============================================================
+# Plot 4: KEGG bubble plot per category
+# ============================================================
+msg("Generating KEGG bubble plots")
 
-cat("[", format(Sys.time()), "] All plots saved to", OUT_PLOTS, "\n")
+for (cat in cats) {
+  kegg_file <- file.path(OUT_KEGG, paste0(cat, "_KEGG_enrichment.txt"))
+  if (!file.exists(kegg_file) || file.info(kegg_file)$size == 0) next
+
+  kegg_df <- read.table(kegg_file, header = TRUE, sep = "\t", quote = "")
+  if (nrow(kegg_df) == 0) next
+
+  kegg_df$pvalue <- as.numeric(kegg_df$pvalue)
+  kegg_df <- kegg_df[!is.na(kegg_df$pvalue), ]
+  kegg_df <- head(kegg_df[order(kegg_df$pvalue), ], 20)
+  kegg_df$name <- factor(kegg_df$name, levels = rev(kegg_df$name))
+
+  fill_col <- ifelse(!is.na(cat_colors[cat]), cat_colors[cat], "#CCCCCC")
+
+  p_kegg <- ggplot(kegg_df,
+                   aes(x = -log10(pvalue), y = name, size = in_category)) +
+    geom_point(color = fill_col, alpha = 0.8) +
+    theme_classic() +
+    labs(title = paste("KEGG enrichment:", gsub("_", " ", cat)),
+         subtitle = config$species,
+         x = "-log10(p-value)", y = NULL,
+         size = "Genes in category") +
+    theme(axis.text.y = element_text(size = 8))
+
+  out_name <- paste0("KEGG_bubble_", cat, ".png")
+  ggsave(file.path(OUT_PLOTS, out_name),
+         plot = p_kegg, width = 10, height = 6, dpi = 150)
+  msg("  ", out_name, " done")
+}
+
+close(con)
+message("Plots complete. Output in: ", OUT_PLOTS)

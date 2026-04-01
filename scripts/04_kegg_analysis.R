@@ -1,128 +1,160 @@
 # ============================================================
 # Script 04: KEGG pathway enrichment analysis
 #
-# Usage: Rscript scripts/04_kegg_analysis.R
-# Requires: config/config.yaml, results from 03_go_analysis.R
-# Environment: goanalysis (R)
+# Reads config/config.yaml. Iterates over all non-empty
+# category refgene files produced by 03_go_analysis.R.
+# Uses Fisher's exact test against all annotated genes.
+#
+# Usage:
+#   micromamba activate goanalysis
+#   Rscript scripts/04_kegg_analysis.R
 # ============================================================
 
-library(yaml)
+suppressPackageStartupMessages({
+  library(yaml)
+})
 
-# ---- Load config ----
-config <- yaml.load_file("config/config.yaml")
+# ---- Load config --------------------------------------------
+config   <- yaml.load_file("config/config.yaml")
+OUT_GO   <- config$output$go
+OUT_KEGG <- config$output$kegg
+ANNOT    <- config$genome$annotation
+P_CUTOFF <- config$kegg$pvalue_cutoff
 
-ANNOTATION  <- config$genome$annotation
-OUT_GO      <- config$output$go
-OUT_KEGG    <- config$output$kegg
-PVAL_CUTOFF <- config$kegg$pvalue_cutoff
+dir.create(OUT_KEGG, recursive = TRUE, showWarnings = FALSE)
+dir.create(config$slurm$logs, recursive = TRUE, showWarnings = FALSE)
 
-dir.create(OUT_KEGG, recursive=TRUE, showWarnings=FALSE)
-
-# ---- Build gene to KEGG mapping ----
-cat("[", format(Sys.time()), "] Building gene to KEGG mapping\n")
-
-kegg_file <- file.path(OUT_KEGG, "gene_to_KEGG.txt")
-
-if (!file.exists(kegg_file)) {
-  cmd <- paste0(
-    "zcat ", ANNOTATION, " | grep -v '^#' | ",
-    "awk -F'\\t' '$13 != \"-\" {split($1, a, \".mRNA\"); print a[1] \"\\t\" $13}' > ",
-    kegg_file
-  )
-  system(cmd)
+log_file <- file.path(config$slurm$logs, "kegg_analysis.log")
+con <- file(log_file, open = "at")
+msg <- function(...) {
+  m <- paste0("[", format(Sys.time()), "] ", ...)
+  message(m); cat(m, "\n", file = con)
 }
 
-kegg_data <- read.table(kegg_file, header=FALSE, sep="\t",
-                         col.names=c("gene", "pathways"), quote="")
+# ---- Categories (match 03 output) ---------------------------
+all_cats <- c(
+  "needle_specific", "root_specific",
+  "cold_specific",   "drought_specific",
+  "somatic_embryo_specific", "zygotic_embryo_specific"
+)
 
-# ---- Build lookup tables ----
-gene_to_path <- list()
-for (i in 1:nrow(kegg_data)) {
-  gene  <- kegg_data$gene[i]
-  paths <- unlist(strsplit(as.character(kegg_data$pathways[i]), ","))
-  paths <- paths[grepl("^map", paths)]
-  gene_to_path[[gene]] <- paths
+cats <- Filter(function(cat) {
+  f <- file.path(OUT_GO, paste0(cat, "_refgenes.txt"))
+  file.exists(f) && file.info(f)$size > 0
+}, all_cats)
+
+if (length(cats) == 0) {
+  msg("No refgene files found from GO step — nothing to do.")
+  quit(status = 0)
 }
+msg("Categories: ", paste(cats, collapse = ", "))
 
-path_to_genes <- list()
-for (gene in names(gene_to_path)) {
-  for (path in gene_to_path[[gene]]) {
-    path_to_genes[[path]] <- c(path_to_genes[[path]], gene)
+# ---- Load annotation ----------------------------------------
+if (is.null(ANNOT) || nchar(ANNOT) == 0 || !file.exists(ANNOT)) {
+  stop("Annotation file not set or not found.")
+}
+msg("Loading annotation: ", ANNOT)
+annot <- read.table(gzfile(ANNOT), sep = "\t", header = FALSE,
+                    comment.char = "#", quote = "", fill = TRUE)
+
+# col 1 = gene, col 13 = KEGG pathway
+gene2KEGG <- list()
+for (i in seq_len(nrow(annot))) {
+  gene  <- as.character(annot[i, 1])
+  keggs <- as.character(annot[i, 13])
+  if (nchar(keggs) > 0 && keggs != "-") {
+    gene2KEGG[[gene]] <- unlist(strsplit(keggs, ","))
   }
 }
 
-universe <- names(gene_to_path)
-cat("Universe size:", length(universe), "genes\n")
-cat("Total pathways:", length(path_to_genes), "\n\n")
+# Build pathway -> gene list
+pathway2gene <- list()
+for (gene in names(gene2KEGG)) {
+  for (pw in gene2KEGG[[gene]]) {
+    pathway2gene[[pw]] <- c(pathway2gene[[pw]], gene)
+  }
+}
 
-# ---- Download pathway names ----
+all_annotated <- unique(names(gene2KEGG))
+N_all         <- length(all_annotated)
+
+write.table(
+  data.frame(gene    = names(gene2KEGG),
+             pathway = sapply(gene2KEGG, paste, collapse = ",")),
+  file = file.path(OUT_KEGG, "gene_to_KEGG.txt"),
+  sep = "\t", row.names = FALSE, quote = FALSE
+)
+msg("gene_to_KEGG.txt: ", length(gene2KEGG), " genes, ",
+    length(pathway2gene), " pathways")
+
+# ---- Fetch KEGG pathway names (requires internet) -----------
 pathway_names_file <- file.path(OUT_KEGG, "kegg_pathway_names.txt")
-
 if (!file.exists(pathway_names_file)) {
-  cat("Downloading KEGG pathway names\n")
-  pathway_url  <- "https://rest.kegg.jp/list/pathway"
-  pathway_names <- tryCatch(
-    read.table(pathway_url, sep="\t", header=FALSE, quote=""),
-    error=function(e) NULL
-  )
-  if (!is.null(pathway_names)) {
-    colnames(pathway_names) <- c("Pathway_ID", "Name")
-    pathway_names$Pathway_ID <- gsub("path:", "", pathway_names$Pathway_ID)
-    write.table(pathway_names, pathway_names_file,
-                sep="\t", row.names=FALSE, quote=FALSE)
-  }
-} else {
-  pathway_names <- read.table(pathway_names_file,
-                               header=TRUE, sep="\t", quote="")
+  msg("Fetching KEGG pathway names...")
+  tryCatch({
+    url  <- "https://rest.kegg.jp/list/pathway"
+    raw  <- readLines(url)
+    df   <- do.call(rbind, strsplit(raw, "\t"))
+    write.table(df, file = pathway_names_file,
+                sep = "\t", row.names = FALSE,
+                col.names = FALSE, quote = FALSE)
+    msg("Pathway names saved: ", nrow(df), " pathways")
+  }, error = function(e) {
+    msg("WARNING: Could not fetch KEGG names (no internet?): ", e$message)
+    file.create(pathway_names_file)
+  })
 }
 
-# ---- Run enrichment for each category ----
-categories <- c("needle_specific", "root_specific",
-                 "cold_specific", "drought_specific")
+pathway_names <- tryCatch({
+  pn <- read.table(pathway_names_file, sep = "\t", header = FALSE,
+                   stringsAsFactors = FALSE)
+  setNames(pn[, 2], pn[, 1])
+}, error = function(e) character(0))
 
-for (category in categories) {
-  cat("=== Processing:", category, "===\n")
+# ---- Process each category ----------------------------------
+for (cat in cats) {
+  msg("Processing: ", cat)
 
-  refgene_file    <- file.path(OUT_GO, paste0(category, "_refgenes.txt"))
-  genes_of_interest <- readLines(refgene_file)
-  genes_of_interest <- genes_of_interest[genes_of_interest %in% universe]
+  cat_genes <- readLines(file.path(OUT_GO, paste0(cat, "_refgenes.txt")))
+  cat_genes <- cat_genes[nchar(cat_genes) > 0]
+  n_cat     <- length(cat_genes)
 
-  cat("Genes with KEGG annotation:", length(genes_of_interest), "\n")
-
-  results <- data.frame()
-
-  for (path in names(path_to_genes)) {
-    path_genes <- path_to_genes[[path]]
-    a <- sum(genes_of_interest %in% path_genes)
-    b <- length(genes_of_interest) - a
-    c <- sum(universe %in% path_genes) - a
-    d <- length(universe) - a - b - c
-    if (a == 0) next
-    mat  <- matrix(c(a, b, c, d), nrow=2)
-    test <- fisher.test(mat, alternative="greater")
-    results <- rbind(results, data.frame(
-      Pathway_ID  = path,
-      Annotated   = length(path_genes),
-      Significant = a,
-      Expected    = round(length(genes_of_interest) * length(path_genes) / length(universe), 2),
-      p_value     = test$p.value
-    ))
+  if (n_cat == 0) {
+    msg("  No genes for ", cat, " — skipping")
+    file.create(file.path(OUT_KEGG, paste0(cat, "_KEGG_enrichment.txt")))
+    next
   }
 
-  results     <- results[order(results$p_value), ]
-  sig_results <- results[results$p_value < PVAL_CUTOFF, ]
+  results <- lapply(names(pathway2gene), function(pw) {
+    pw_genes  <- pathway2gene[[pw]]
+    in_cat    <- sum(cat_genes   %in% pw_genes)
+    not_cat   <- sum(all_annotated[!all_annotated %in% cat_genes] %in% pw_genes)
+    mat <- matrix(c(in_cat,
+                    n_cat - in_cat,
+                    not_cat,
+                    N_all - n_cat - not_cat),
+                  nrow = 2)
+    p <- fisher.test(mat, alternative = "greater")$p.value
+    data.frame(
+      pathway    = pw,
+      name       = ifelse(pw %in% names(pathway_names), pathway_names[[pw]], pw),
+      in_category = in_cat,
+      in_pathway  = length(pw_genes),
+      total_genes = N_all,
+      pvalue      = p,
+      stringsAsFactors = FALSE
+    )
+  })
 
-  # Add pathway names
-  sig_results$Pathway_Name <- pathway_names$Name[
-    match(sig_results$Pathway_ID, pathway_names$Pathway_ID)]
-  sig_results <- sig_results[, c("Pathway_ID", "Pathway_Name",
-                                  "Annotated", "Significant",
-                                  "Expected", "p_value")]
+  result_df  <- do.call(rbind, results)
+  result_df  <- result_df[order(result_df$pvalue), ]
+  sig_df     <- result_df[result_df$pvalue < P_CUTOFF, ]
 
-  cat("Significant pathways:", nrow(sig_results), "\n\n")
-
-  out_file <- file.path(OUT_KEGG, paste0(category, "_KEGG_enrichment.txt"))
-  write.table(sig_results, out_file, sep="\t", row.names=FALSE, quote=FALSE)
+  out_file <- file.path(OUT_KEGG, paste0(cat, "_KEGG_enrichment.txt"))
+  write.table(sig_df, file = out_file,
+              sep = "\t", row.names = FALSE, quote = FALSE)
+  msg("  Significant pathways: ", nrow(sig_df), " -> ", out_file)
 }
 
-cat("[", format(Sys.time()), "] KEGG analysis complete. Results saved to", OUT_KEGG, "\n")
+close(con)
+message("KEGG analysis complete.")

@@ -1,56 +1,108 @@
 # ============================================================
-# comparative-lncRNA-pipeline configuration file
-# Copy this file to config/config.yaml and fill in your paths
-# cp config/config.yaml.template config/config.yaml
+# comparative-lncRNA-pipeline config template
+# Copy to config/config.yaml and fill in your paths
+# This file IS committed to git — config/config.yaml is NOT
+#
+# Runtime species selection:
+#   snakemake --config species=pine
+#   snakemake --config species=spruce
 # ============================================================
 
-project_name: "your_project_name"
-species: "Your species name"
+default_species: pine   # used if --config species= is not passed
 
-# Paths
-genome:
-  reference: "/path/to/merge_transcripts.fasta"
-  gtf: "/path/to/merge_pine.gtf"
-  annotation: "/path/to/emapper_annotations.tsv.gz"
+# ============================================================
+# Species 1
+# ============================================================
+pine:
+  project_name: "pine_lncRNA_stress"
+  species_name: "Pinus sylvestris"
 
-samples:
-  directory: "/path/to/samples/directory"
-  names:
-    - SAMPLE1
-    - SAMPLE2
-    - SAMPLE3
-    - SAMPLE4
+  genome:
+    reference: "/path/to/reference.fasta"
+    gtf:        "path/to/reference.gtf"
+    annotation: "/path/to/eggnog.emapper.annotations.tsv.gz"
 
-# Output directories
-output:
-  base: "results"
-  paf: "results/paf"
-  bed: "results/bed"
-  fasta: "results/fasta"
-  go: "results/GO_analysis"
-  kegg: "results/KEGG"
-  plots: "results/plots"
+  # Filename pattern: candidate_transcript_<name>.fasta
+  # Pine stress 2x2: PCN PCR PDN PDR
+  samples:
+    directory: "/path/to/pine/sample/fastas"
+    names:
+      - PCN
+      - PCR
+      - PDN
+      - PDR
 
-# SLURM settings
-slurm:
-  account: "your_slurm_account"
-  partition: "main"
-  threads: 20
-  time: "2-00:00:00"
-  email: "your@email.com"
+  output:
+    base:  "/path/to/pine/output"
+    paf:   "/path/to/pine/output/paf"
+    bed:   "/path/to/pine/output/bed"
+    fasta: "/path/to/pine/output/fasta"
+    go:    "/path/to/pine/output/GO_analysis"
+    kegg:  "/path/to/pine/output/KEGG"
+    plots: "/path/to/pine/output/plots"
 
-# Minimap2 parameters
+  slurm:
+    account:   "your_account"
+    partition: "main"
+    threads:   20
+    runtime:   2880          # minutes (2880 = 2 days)
+    logs:      "/path/to/pine/logs"
+    errors:    "/path/to/pine/errors"
+
+# ============================================================
+# Species 2
+# ============================================================
+spruce:
+  project_name: "spruce_lncRNA_stress"
+  species_name: "Picea abies"
+
+  genome:
+    reference: "/path/to/reference.fasta"
+    gtf:        "/path/to/reference.gtf"
+    annotation: "/path/to/eggnog.emapper.annotations.tsv.gz"
+
+  # Spruce stress 2x2:    SCN SCR SDN SDR
+  # Spruce embryogenesis: SSE SZE
+  # Combined:             SCN SCR SDN SDR SSE SZE
+  samples:
+    directory: "/path/to/spruce/sample/fastas"
+    names:
+      - SCN
+      - SCR
+      - SDN
+      - SDR
+      - SSE
+      - SZE
+
+  output:
+    base:  "/path/to/spruce/output"
+    paf:   "/path/to/spruce/output/paf"
+    bed:   "/path/to/spruce/output/bed"
+    fasta: "/path/to/spruce/output/fasta"
+    go:    "/path/to/spruce/output/GO_analysis"
+    kegg:  "/path/to/spruce/output/KEGG"
+    plots: "/path/to/spruce/output/plots"
+
+  slurm:
+    account:   "your_account"
+    partition: "main"
+    threads:   20
+    runtime:   2880
+    logs:      "/path/to/spruce/logs"
+    errors:    "/path/to/spruce/errors"
+
+# ============================================================
+# Shared parameters (apply to all species)
+# ============================================================
 minimap2:
   index_size: "4G"
-  preset: "splice"
+  preset:     "splice"
 
-# GO enrichment parameters
 go:
   pvalue_cutoff: 0.05
-  top_nodes: 50
-  algorithm: "weight01"
-  statistic: "fisher"
+  top_nodes:     50
+  algorithm:     "weight01"
+  statistic:     "fisher"
 
-# KEGG enrichment parameters
 kegg:
   pvalue_cutoff: 0.05
