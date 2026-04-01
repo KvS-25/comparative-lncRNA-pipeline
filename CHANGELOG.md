@@ -19,6 +19,6 @@
 
 ### Addition of spruce
 
--Addition of spruce dataset rules and outputs to config and template
--Updated Snakefile to allow choosing of spieces to run
--Updated scripts with revisied directory structure and logic
+- Addition of spruce dataset rules and outputs to config and template
+- Updated Snakefile to allow choosing of spieces to run
+- Updated scripts with revisied directory structure and logic
