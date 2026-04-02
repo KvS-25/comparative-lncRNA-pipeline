@@ -27,3 +27,15 @@
 - `scripts/04_kegg_analysis.R` split into `build_maps` and `enrich` modes; KEGG API fetched once, saved as RDS
 - `scripts/05_plots.R` extended with embryo-specific colour palette entries
 - `Snakefile` rewritten: `build_go_maps` and `build_kegg_maps` rules run once; `go_analysis` and `kegg_analysis` wildcard rules run per category; embryo categories supported
+
+## v1.5.1 — 2026-04-02
+
+### Bug fixes and compatibility
+
+- Fixed `envs/goanalysis.yaml`: removed `r-reshape2` (caused unsatisfiable dependency conflicts), added `r-yaml` and `r-upsetr`, pinned `r-base`, `libdeflate`, and `libtiff` to resolve `libtiff`/`libdeflate` solver conflicts
+- Fixed `Snakefile`: added `conda: "envs/alignment.yaml"` directive to `align`, `extract_fasta`, and `multiinter` rules — minimap2 and bedtools were not found in SLURM job environments without this
+- Fixed `multiinter` rule: converted from `run:` block to `shell:` block so the conda environment is correctly activated
+- Fixed `scripts/03_go_analysis.R`: added automatic BED format detection to handle both chromosome-based (pine) and transcript-based (spruce) reference alignments; added `strip_isoform()` helper to correctly match gene IDs against eggNOG annotation
+- Fixed `scripts/04_kegg_analysis.R`: added `strip_isoform()` helper to match refgene IDs against KEGG annotation
+- Fixed `scripts/05_plots.R`: updated config parsing to use multi-species block structure (`config[[SPECIES]]`) instead of top-level keys; added `tryCatch` to handle empty GO/KEGG result files gracefully
+- Fixed `profiles/slurm/config.yaml`: replaced template placeholders with actual SLURM account

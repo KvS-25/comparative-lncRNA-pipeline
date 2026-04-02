@@ -61,16 +61,25 @@ git clone https://github.com/KvS-25/comparative-lncRNA-pipeline.git
 cd comparative-lncRNA-pipeline
 ```
 
-**2. Create environments:**
+**2. Install Snakemake and the SLURM executor plugin:**
+```bash
+micromamba create -n snakemake -c conda-forge -c bioconda snakemake
+micromamba activate snakemake
+pip install snakemake-executor-plugin-slurm
+```
+
+**3. Ensure conda ≥ 24.7.1 is available in the snakemake environment:**
+```bash
+micromamba install "conda>=24.7.1" -c conda-forge
+```
+
+**4. Create environments:**
 ```bash
 micromamba env create -f envs/alignment.yaml
 micromamba env create -f envs/goanalysis.yaml
-
-micromamba activate goanalysis
-Rscript -e "install.packages(c('yaml', 'UpSetR'), repos='https://cloud.r-project.org')"
 ```
 
-**3. Set up config:**
+**5. Set up config:**
 ```bash
 cp config/config.yaml.template config/config.yaml
 nano config/config.yaml  # fill in your paths
