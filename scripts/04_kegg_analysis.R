@@ -50,6 +50,15 @@ load_annotation <- function(annot_file) {
 }
 
 # ============================================================
+# Shared helper: strip isoform suffix from gene IDs
+# ============================================================
+strip_isoform <- function(ids) {
+  ids <- sub("\\.(mRNA|t)\\.[0-9]+$", "", ids)
+  ids <- sub("\\.mRNA[0-9]+$",         "", ids)
+  unique(ids)
+}
+
+# ============================================================
 # MODE 1: build_maps
 # Args: build_maps <annotation> <out_gene_kegg> <out_pathway_names>
 # ============================================================
@@ -79,7 +88,7 @@ if (MODE == "build_maps") {
               row.names = FALSE, quote = FALSE)
   cat("  gene→KEGG map:", nrow(gene_ko), "entries written\n")
 
-  # pathway → gene map (collect all pathways)
+  # pathway → gene map
   annot_path <- annot[!is.na(annot$KEGG_Pathway) &
                         annot$KEGG_Pathway != "" & annot$KEGG_Pathway != "-", ]
   pathway_genes <- list()
@@ -107,7 +116,6 @@ if (MODE == "build_maps") {
       cat("  Warning: could not fetch", pw_ids[i], "\n")
     })
   }
-  # Save pathway names + serialised pathway_genes as RDS alongside
   write.table(pw_names, OUT_PATHWAY_NAMES, sep = "\t",
               row.names = FALSE, quote = FALSE)
   saveRDS(pathway_genes,
@@ -123,10 +131,10 @@ if (MODE == "build_maps") {
   if (length(args) < 5)
     stop("Usage: enrich <refgenes> <gene_kegg> <pathway_names> <out_result>")
 
-  REFGENES_FILE     <- args[2]
-  GENE_KEGG_FILE    <- args[3]
+  REFGENES_FILE      <- args[2]
+  GENE_KEGG_FILE     <- args[3]
   PATHWAY_NAMES_FILE <- args[4]
-  OUT_RESULT        <- args[5]
+  OUT_RESULT         <- args[5]
 
   dir.create(dirname(OUT_RESULT), recursive = TRUE, showWarnings = FALSE)
 
@@ -134,9 +142,12 @@ if (MODE == "build_maps") {
 
   refgenes <- readLines(REFGENES_FILE)
   refgenes <- refgenes[nchar(trimws(refgenes)) > 0]
+
+  # Strip isoform suffix to match annotation gene IDs
+  refgenes <- strip_isoform(refgenes)
   cat("  Ref genes:", length(refgenes), "\n")
 
-  # Load pathway→gene map from RDS saved during build_maps
+  # Load pathway→gene map
   rds_file <- sub("\\.txt$", "_map.rds", PATHWAY_NAMES_FILE)
   if (!file.exists(rds_file)) {
     cat("  WARNING: pathway map RDS not found — writing empty result\n")

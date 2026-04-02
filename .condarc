@@ -1,0 +1,5 @@
+channel_priority: flexible
+channels:
+  - bioconda
+  - conda-forge
+  - defaults

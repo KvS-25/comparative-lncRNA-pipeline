@@ -5,6 +5,7 @@ latency-wait: 60
 rerun-incomplete: true
 printshellcmds: true
 default-resources:
-  # slurm_account and slurm_partition are set per-rule from the species config block
+  slurm_account: "u2015037"
+  slurm_partition: "main"
   runtime: "60"
   mem_mb: 8000

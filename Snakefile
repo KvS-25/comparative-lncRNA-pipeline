@@ -87,6 +87,7 @@ rule align:
     output:
         paf = os.path.join(OUT_PAF, "{sample}.paf"),
         bed = os.path.join(OUT_BED, "{sample}.bed"),
+    conda: "envs/alignment.yaml"
     params:
         preset     = PRESET,
         index_size = INDEX_SIZE,
@@ -129,6 +130,7 @@ rule extract_fasta:
         genome = GENOME,
     output:
         fasta  = os.path.join(OUT_FASTA, "{sample}.fasta"),
+    conda: "envs/alignment.yaml" 
     resources:
         runtime = 60,
     shell:
@@ -155,72 +157,67 @@ rule multiinter:
         drought_specific        = os.path.join(OUT_BASE, "drought_specific.bed"),
         somatic_embryo_specific = os.path.join(OUT_BASE, "somatic_embryo_specific.bed"),
         zygotic_embryo_specific = os.path.join(OUT_BASE, "zygotic_embryo_specific.bed"),
+    conda: "envs/alignment.yaml"
     params:
-        names       = " ".join(SAMPLES),
-        n           = len(SAMPLES),
-        has_needle  = HAS_NEEDLE,
-        has_root    = HAS_ROOT,
-        has_cold    = HAS_COLD,
-        has_drought = HAS_DROUGHT,
-        has_embryo  = HAS_EMBRYO,
-        col         = {s: (i + 6) for i, s in enumerate(SAMPLES)},
-        out_base    = OUT_BASE,
+        names    = " ".join(SAMPLES),
+        n        = len(SAMPLES),
+        out_base = OUT_BASE,
     resources:
         runtime = 60,
-    run:
-        import subprocess, os
-        os.makedirs(params.out_base, exist_ok=True)
+    shell:
+        """
+        bedtools multiinter \
+            -i {input.beds} \
+            -names {params.names} \
+            > {output.multiinter}
 
-        bed_files = " ".join(input.beds)
+        awk '$4=={params.n}' {output.multiinter} > {output.conserved}
 
-        subprocess.run(
-            f"bedtools multiinter -i {bed_files} -names {params.names} "
-            f"> {output.multiinter}",
-            shell=True, check=True
-        )
+        python3 - "{output.multiinter}" "{params.out_base}" {params.names} << 'PYEOF'
+import sys, subprocess, os
 
-        subprocess.run(
-            f"awk '$4=={params.n}' {output.multiinter} > {output.conserved}",
-            shell=True, check=True
-        )
+bed_file = sys.argv[1]
+out_base = sys.argv[2]
+samples  = sys.argv[3:]
 
-        def present(s): return f"${params.col[s]}==1"
-        def absent(s):  return f"${params.col[s]}==0"
+col = dict((s, i + 6) for i, s in enumerate(samples))
 
-        def write_specific(pos, neg, outfile):
-            p = " && ".join(present(s) for s in pos)
-            n = " && ".join(absent(s)  for s in neg)
-            expr = f"{p} && {n}" if n else p
-            subprocess.run(
-                f"awk '{expr}' {output.multiinter} > {outfile}",
-                shell=True, check=True
-            )
+def awk_filter(present, absent, outfile):
+    p = " && ".join("$" + str(col[s]) + "==1" for s in present)
+    a = " && ".join("$" + str(col[s]) + "==0" for s in absent)
+    expr = (p + " && " + a) if a else p
+    cmd = "awk '" + expr + "' " + bed_file + " > " + outfile
+    subprocess.run(cmd, shell=True, check=True)
+    open(outfile, 'a').close()
 
-        needle_s  = [s for s in SAMPLES if s.endswith("N") and s not in ("SSE","SZE")]
-        root_s    = [s for s in SAMPLES if s.endswith("R") and s not in ("SSE","SZE")]
-        cold_s    = [s for s in SAMPLES if len(s) > 1 and s[1]=="C" and s not in ("SSE","SZE")]
-        drought_s = [s for s in SAMPLES if len(s) > 1 and s[1]=="D" and s not in ("SSE","SZE")]
+stress  = [s for s in samples if s not in ("SSE", "SZE")]
+needle  = [s for s in stress if s.endswith("N")]
+root    = [s for s in stress if s.endswith("R")]
+cold    = [s for s in stress if len(s) > 1 and s[1] == "C"]
+drought = [s for s in stress if len(s) > 1 and s[1] == "D"]
 
-        if params.has_needle and params.has_root:
-            write_specific(needle_s,  root_s,    output.needle_specific)
-            write_specific(root_s,    needle_s,  output.root_specific)
-        else:
-            open(output.needle_specific, 'w').close()
-            open(output.root_specific,   'w').close()
+if needle and root:
+    awk_filter(needle, root,   out_base + "/needle_specific.bed")
+    awk_filter(root,   needle, out_base + "/root_specific.bed")
+else:
+    open(out_base + "/needle_specific.bed", "w").close()
+    open(out_base + "/root_specific.bed",   "w").close()
 
-        if params.has_cold and params.has_drought:
-            write_specific(cold_s,    drought_s, output.cold_specific)
-            write_specific(drought_s, cold_s,    output.drought_specific)
-        else:
-            open(output.cold_specific,    'w').close()
-            open(output.drought_specific, 'w').close()
+if cold and drought:
+    awk_filter(cold,    drought, out_base + "/cold_specific.bed")
+    awk_filter(drought, cold,    out_base + "/drought_specific.bed")
+else:
+    open(out_base + "/cold_specific.bed",    "w").close()
+    open(out_base + "/drought_specific.bed", "w").close()
 
-        if params.has_embryo:
-            write_specific(["SSE"], ["SZE"], output.somatic_embryo_specific)
-            write_specific(["SZE"], ["SSE"], output.zygotic_embryo_specific)
-        else:
-            open(output.somatic_embryo_specific, 'w').close()
-            open(output.zygotic_embryo_specific, 'w').close()
+if "SSE" in samples and "SZE" in samples:
+    awk_filter(["SSE"], ["SZE"], out_base + "/somatic_embryo_specific.bed")
+    awk_filter(["SZE"], ["SSE"], out_base + "/zygotic_embryo_specific.bed")
+else:
+    open(out_base + "/somatic_embryo_specific.bed", "w").close()
+    open(out_base + "/zygotic_embryo_specific.bed", "w").close()
+PYEOF
+        """
 
 # ============================================================
 # Rule: build_go_maps — build gene→GO and MSTRG maps once
@@ -316,15 +313,10 @@ rule plots:
         kegg_results = expand(os.path.join(OUT_KEGG, "{cat}_KEGG_enrichment.txt"),  cat=CATEGORIES),
     output:
         upset = os.path.join(OUT_PLOTS, "upset_plot.png"),
-    params:
-        plots_dir = OUT_PLOTS,
-        names     = " ".join(SAMPLES),
     conda: "envs/goanalysis.yaml"
     resources:
         runtime = 60,
     log:
         os.path.join(LOGS_DIR, "plots.log"),
     shell:
-        "Rscript scripts/05_plots.R "
-        "{input.multiinter} {params.plots_dir} {params.names} "
-        "> {log} 2>&1"
+        "Rscript scripts/05_plots.R > {log} 2>&1"

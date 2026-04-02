@@ -55,6 +55,15 @@ load_annotation <- function(annot_file) {
 }
 
 # ============================================================
+# Shared helper: strip isoform suffix from gene IDs
+# ============================================================
+strip_isoform <- function(ids) {
+  ids <- sub("\\.(mRNA|t)\\.[0-9]+$", "", ids)
+  ids <- sub("\\.mRNA[0-9]+$",         "", ids)
+  unique(ids)
+}
+
+# ============================================================
 # MODE 1: build_maps
 # Args: build_maps <annotation> <out_gene_go> <out_mstrg_map>
 # ============================================================
@@ -88,7 +97,7 @@ if (MODE == "build_maps") {
               row.names = FALSE, quote = FALSE)
   cat("  gene→GO map:", nrow(gene_go_df), "entries written\n")
 
-  # Write empty MSTRG map placeholder (populated per-category in enrich mode)
+  # Write empty MSTRG map placeholder
   write.table(data.frame(mstrg = character(), ref = character()),
               OUT_MSTRG, sep = "\t", row.names = FALSE, quote = FALSE)
   cat("  MSTRG map placeholder written\n")
@@ -114,34 +123,48 @@ if (MODE == "build_maps") {
   cat("[", format(Sys.time()), "] GO enrichment for:", BED_FILE, "\n")
 
   # Load BED
-  bed     <- read.table(BED_FILE, header = FALSE, sep = "\t",
-                        stringsAsFactors = FALSE)
-  all_ids <- unique(unlist(strsplit(bed$V4, ",")))
-  mstrg_ids <- all_ids[grepl("^MSTRG", all_ids)]
-  known_ids <- all_ids[!grepl("^MSTRG", all_ids)]
+  bed <- read.table(BED_FILE, header = FALSE, sep = "\t",
+                    stringsAsFactors = FALSE)
+
+  # Detect BED format:
+  # - transcript-based (spruce): V4 is numeric count, V1 is transcript name
+  # - chromosome-based (pine):   V4 is comma-separated gene IDs
+  if (all(grepl("^[0-9]+$", as.character(bed$V4)))) {
+    cat("  Detected transcript-based BED (spruce-style)\n")
+    all_ids   <- unique(as.character(bed$V1))
+    mstrg_ids <- all_ids[grepl("^MSTRG", all_ids)]
+    known_ids <- all_ids[!grepl("^MSTRG", all_ids)]
+    resolved  <- unique(known_ids)
+  } else {
+    cat("  Detected chromosome-based BED (pine-style)\n")
+    all_ids   <- unique(unlist(strsplit(as.character(bed$V4), ",")))
+    mstrg_ids <- all_ids[grepl("^MSTRG", all_ids)]
+    known_ids <- all_ids[!grepl("^MSTRG", all_ids)]
+
+    mstrg_map <- data.frame(mstrg = character(), ref = character(),
+                            stringsAsFactors = FALSE)
+    for (col4 in bed$V4) {
+      ids    <- strsplit(col4, ",")[[1]]
+      m_here <- ids[grepl("^MSTRG", ids)]
+      k_here <- ids[!grepl("^MSTRG", ids)]
+      if (length(m_here) > 0 && length(k_here) > 0) {
+        for (m in m_here) for (k in k_here)
+          mstrg_map <- rbind(mstrg_map,
+                             data.frame(mstrg = m, ref = k,
+                                        stringsAsFactors = FALSE))
+      }
+    }
+    mstrg_map <- unique(mstrg_map)
+    resolved  <- unique(c(known_ids, mstrg_map$ref[mstrg_map$mstrg %in% mstrg_ids]))
+  }
+
+  # Strip isoform suffix to match annotation gene IDs
+  resolved <- strip_isoform(resolved)
+  resolved <- resolved[nchar(resolved) > 0]
+
+  write(resolved, OUT_REFGENES)
   cat("  Regions:", nrow(bed), "| MSTRG IDs:", length(mstrg_ids),
       "| Known IDs:", length(known_ids), "\n")
-
-  # Build MSTRG → ref gene map from BED col 4 co-occurrences
-  mstrg_map <- data.frame(mstrg = character(), ref = character(),
-                          stringsAsFactors = FALSE)
-  for (col4 in bed$V4) {
-    ids        <- strsplit(col4, ",")[[1]]
-    m_here     <- ids[grepl("^MSTRG", ids)]
-    k_here     <- ids[!grepl("^MSTRG", ids)]
-    if (length(m_here) > 0 && length(k_here) > 0) {
-      for (m in m_here) for (k in k_here)
-        mstrg_map <- rbind(mstrg_map,
-                           data.frame(mstrg = m, ref = k,
-                                      stringsAsFactors = FALSE))
-    }
-  }
-  mstrg_map <- unique(mstrg_map)
-
-  # Resolve ref genes
-  resolved   <- unique(c(known_ids, mstrg_map$ref[mstrg_map$mstrg %in% mstrg_ids]))
-  resolved   <- resolved[nchar(resolved) > 0]
-  write(resolved, OUT_REFGENES)
   cat("  Resolved ref genes:", length(resolved), "\n")
 
   # Load gene→GO map

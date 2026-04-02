@@ -4,7 +4,10 @@ channels:
   - conda-forge
   - defaults
 dependencies:
-  - r-base>=4.3
+  - r-base=4.5.3
+  - libdeflate=1.25
+  - libtiff=4.7.1
   - bioconductor-topgo
   - r-ggplot2
-  - r-reshape2
+  - r-yaml
+  - r-upsetr
