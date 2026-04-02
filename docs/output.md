@@ -33,7 +33,9 @@ results/
 ├── needle_specific.bed           # Needle tissue specific
 ├── root_specific.bed             # Root tissue specific
 ├── cold_specific.bed             # Cold stress specific
-└── drought_specific.bed          # Drought stress specific
+├── drought_specific.bed          # Drought stress specific
+├── somatic_embryo_specific.bed   # Somatic embryo specific (SSE only, if present)
+└── zygotic_embryo_specific.bed   # Zygotic embryo specific (SZE only, if present)
 ```
 
 ## File Descriptions

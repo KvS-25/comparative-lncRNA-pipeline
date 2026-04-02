@@ -15,10 +15,15 @@
 - Synthetic test dataset
 - Config template for easy setup
 
-## v1.5.0 - 2026-04-01
+## v1.5.0 — 2026-04-01
 
-### Addition of spruce
+### Multi-species support
 
-- Addition of spruce dataset rules and outputs to config and template
-- Updated Snakefile to allow choosing of spieces to run
-- Updated scripts with revisied directory structure and logic
+- Config restructured into per-species blocks (`pine`, `spruce`) with `default_species` key
+- Runtime species selection: `snakemake --config species=spruce`
+- Spruce sample set added: SCN, SCR, SDN, SDR (stress) and SSE, SZE (embryogenesis)
+- `scripts/02_multiinter.sh` now auto-detects tissue/condition/embryo categories from sample names — no manual edits needed for new designs
+- `scripts/03_go_analysis.R` split into `build_maps` (runs once) and `enrich` (per-category) modes
+- `scripts/04_kegg_analysis.R` split into `build_maps` and `enrich` modes; KEGG API fetched once, saved as RDS
+- `scripts/05_plots.R` extended with embryo-specific colour palette entries
+- `Snakefile` rewritten: `build_go_maps` and `build_kegg_maps` rules run once; `go_analysis` and `kegg_analysis` wildcard rules run per category; embryo categories supported
