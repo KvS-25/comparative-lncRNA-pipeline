@@ -31,7 +31,6 @@ THREADS     = SP["slurm"]["threads"]
 OUT_BASE    = SP["output"]["base"]
 OUT_PAF     = SP["output"]["paf"]
 OUT_BED     = SP["output"]["bed"]
-OUT_FASTA   = SP["output"]["fasta"]
 OUT_GO      = SP["output"]["go"]
 OUT_KEGG    = SP["output"]["kegg"]
 OUT_PLOTS   = SP["output"]["plots"]
@@ -63,9 +62,8 @@ if HAS_EMBRYO:
 # ============================================================
 rule all:
     input:
-        expand(os.path.join(OUT_PAF,   "{sample}.paf"),   sample=SAMPLES),
-        expand(os.path.join(OUT_BED,   "{sample}.bed"),   sample=SAMPLES),
-        expand(os.path.join(OUT_FASTA, "{sample}.fasta"), sample=SAMPLES),
+        expand(os.path.join(OUT_BED,  "{sample}.bed"),  sample=SAMPLES),
+        expand(os.path.join(OUT_PAF,  "{sample}.paf"),  sample=SAMPLES),
         os.path.join(OUT_BASE, "multiinter_output.bed"),
         os.path.join(OUT_BASE, "conserved.bed"),
         expand(os.path.join(OUT_BASE, "{cat}.bed"),                        cat=CATEGORIES),
@@ -119,27 +117,6 @@ rule align:
             if (score > 1000) score = 1000;
             print $6, $8, $9, $1, score, $5
         }}' {output.paf} | sort -k1,1 -k2,2n > {output.bed}
-        """
-
-# ============================================================
-# Rule: extract_fasta — bedtools getfasta (login node)
-# ============================================================
-rule extract_fasta:
-    input:
-        bed    = os.path.join(OUT_BED,   "{sample}.bed"),
-        genome = GENOME,
-    output:
-        fasta  = os.path.join(OUT_FASTA, "{sample}.fasta"),
-    conda: "envs/alignment.yaml" 
-    resources:
-        runtime = 60,
-    shell:
-        """
-        mkdir -p $(dirname {output.fasta})
-        bedtools getfasta \
-            -fi {input.genome} \
-            -bed {input.bed} \
-            -fo {output.fasta}
         """
 
 # ============================================================

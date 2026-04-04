@@ -32,10 +32,17 @@ if (file.exists("config/config.yaml")) {
 # ============================================================
 load_annotation <- function(annot_file) {
   cat("[", format(Sys.time()), "] Loading annotation:", annot_file, "\n")
+  
+  # Read lines manually to avoid read.table stopping on embedded # characters
+  lines <- readLines(gzfile(annot_file))
+  lines <- lines[!grepl("^#", lines)]  # remove comment lines
+  lines <- lines[nchar(trimws(lines)) > 0]  # remove empty lines
+  
   annot <- read.table(
-    gzfile(annot_file), sep = "\t", header = FALSE,
-    comment.char = "#", stringsAsFactors = FALSE, fill = TRUE
+    text = lines, sep = "\t", header = FALSE,
+    stringsAsFactors = FALSE, fill = TRUE, quote = ""
   )
+  
   col_names <- c("query","seed_ortholog","evalue","score",
                  "eggNOG_OGs","max_annot_lvl","COG_category",
                  "Description","Preferred_name","GOs",
