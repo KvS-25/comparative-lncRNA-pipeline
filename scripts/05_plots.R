@@ -61,6 +61,14 @@ msg("Species: ", SPECIES_NAME)
 msg("Samples: ", paste(SAMPLES, collapse = ", "))
 msg("Categories: ", paste(cats, collapse = ", "))
 
+# ---- Load pathway names for KEGG ----------------------------
+pw_names <- tryCatch(
+  read.table(file.path(OUT_KEGG, "kegg_pathway_names.txt"),
+             header = TRUE, sep = "\t", quote = "",
+             stringsAsFactors = FALSE),
+  error = function(e) NULL
+)
+
 # ============================================================
 # Plot 1: UpSet plot
 # ============================================================
@@ -199,6 +207,15 @@ for (cat in cats) {
     next
   }
 
+  # Join pathway names
+  if (!is.null(pw_names)) {
+    kegg_df <- merge(kegg_df, pw_names, by = "Pathway", all.x = TRUE)
+    kegg_df$name <- ifelse(is.na(kegg_df$Name) | kegg_df$Name == "",
+                           kegg_df$Pathway, kegg_df$Name)
+  } else {
+    kegg_df$name <- kegg_df$Pathway
+  }
+
   kegg_df$pvalue <- as.numeric(kegg_df$pvalue)
   kegg_df <- kegg_df[!is.na(kegg_df$pvalue), ]
   kegg_df <- head(kegg_df[order(kegg_df$pvalue), ], 20)
@@ -207,13 +224,13 @@ for (cat in cats) {
   fill_col <- ifelse(!is.na(cat_colors[cat]), cat_colors[cat], "#CCCCCC")
 
   p_kegg <- ggplot(kegg_df,
-                   aes(x = -log10(pvalue), y = name, size = in_category)) +
+                   aes(x = -log10(pvalue), y = name, size = Observed)) +
     geom_point(color = fill_col, alpha = 0.8) +
     theme_classic() +
     labs(title = paste("KEGG enrichment:", gsub("_", " ", cat)),
          subtitle = SPECIES_NAME,
          x = "-log10(p-value)", y = NULL,
-         size = "Genes in category") +
+         size = "Observed genes") +
     theme(axis.text.y = element_text(size = 8))
 
   out_name <- paste0("KEGG_bubble_", cat, ".png")
