@@ -209,11 +209,11 @@ for (cat in cats) {
 
   # Join pathway names
   if (!is.null(pw_names)) {
-    kegg_df <- merge(kegg_df, pw_names, by = "Pathway", all.x = TRUE)
-    kegg_df$name <- ifelse(is.na(kegg_df$Name) | kegg_df$Name == "",
-                           kegg_df$Pathway, kegg_df$Name)
+    
+    kegg_df$name <- ifelse(is.na(kegg_df$name) | kegg_df$name == "",
+                           kegg_df$pathway_id, kegg_df$name)
   } else {
-    kegg_df$name <- kegg_df$Pathway
+    kegg_df$name <- kegg_df$pathway_id
   }
 
   kegg_df$pvalue <- as.numeric(kegg_df$pvalue)
@@ -224,13 +224,13 @@ for (cat in cats) {
   fill_col <- ifelse(!is.na(cat_colors[cat]), cat_colors[cat], "#CCCCCC")
 
   p_kegg <- ggplot(kegg_df,
-                   aes(x = -log10(pvalue), y = name, size = Observed)) +
+                   aes(x = -log10(pvalue), y = name, size = in_category)) +
     geom_point(color = fill_col, alpha = 0.8) +
     theme_classic() +
     labs(title = paste("KEGG enrichment:", gsub("_", " ", cat)),
          subtitle = SPECIES_NAME,
          x = "-log10(p-value)", y = NULL,
-         size = "Observed genes") +
+         size = "Genes in category") +
     theme(axis.text.y = element_text(size = 8))
 
   out_name <- paste0("KEGG_bubble_", cat, ".png")
