@@ -71,8 +71,10 @@ rule all:
         os.path.join(OUT_GO,   "mstrg_to_refgene.txt"),
         os.path.join(OUT_KEGG, "gene_to_KEGG.txt"),
         os.path.join(OUT_KEGG, "kegg_pathway_names.txt"),
-        expand(os.path.join(OUT_GO,   "{cat}_BP_GO_enrichment.txt"),       cat=CATEGORIES),
-        expand(os.path.join(OUT_KEGG, "{cat}_KEGG_enrichment.txt"),        cat=CATEGORIES),
+        expand(os.path.join(OUT_GO,   "{cat}_BP_GO_enrichment.txt"), cat=CATEGORIES),
+        expand(os.path.join(OUT_GO,   "{cat}_MF_GO_enrichment.txt"), cat=CATEGORIES),
+        expand(os.path.join(OUT_GO,   "{cat}_CC_GO_enrichment.txt"), cat=CATEGORIES),
+        expand(os.path.join(OUT_KEGG, "{cat}_KEGG_enrichment.txt"),  cat=CATEGORIES),
         os.path.join(OUT_PLOTS, "upset_plot.png"),
 
 # ============================================================
@@ -197,8 +199,7 @@ PYEOF
         """
 
 # ============================================================
-# Rule: build_go_maps — build gene→GO and MSTRG maps once
-#       from the full annotation (no wildcard, runs once)
+# Rule: build_go_maps — build gene->GO and MSTRG maps once
 # ============================================================
 rule build_go_maps:
     input:
@@ -218,16 +219,18 @@ rule build_go_maps:
         "> {log} 2>&1"
 
 # ============================================================
-# Rule: go_analysis — per-category GO enrichment
+# Rule: go_analysis — per-category GO enrichment (BP + MF + CC)
 # ============================================================
 rule go_analysis:
     input:
-        bed      = os.path.join(OUT_BASE, "{cat}.bed"),
-        gene_go  = os.path.join(OUT_GO, "gene_to_GO.txt"),
-        mstrg    = os.path.join(OUT_GO, "mstrg_to_refgene.txt"),
+        bed     = os.path.join(OUT_BASE, "{cat}.bed"),
+        gene_go = os.path.join(OUT_GO, "gene_to_GO.txt"),
+        mstrg   = os.path.join(OUT_GO, "mstrg_to_refgene.txt"),
     output:
         refgenes = os.path.join(OUT_GO, "{cat}_refgenes.txt"),
-        result   = os.path.join(OUT_GO, "{cat}_BP_GO_enrichment.txt"),
+        bp       = os.path.join(OUT_GO, "{cat}_BP_GO_enrichment.txt"),
+        mf       = os.path.join(OUT_GO, "{cat}_MF_GO_enrichment.txt"),
+        cc       = os.path.join(OUT_GO, "{cat}_CC_GO_enrichment.txt"),
     conda: "envs/goanalysis.yaml"
     resources:
         runtime = 120,
@@ -236,11 +239,11 @@ rule go_analysis:
     shell:
         "Rscript scripts/03_go_analysis.R "
         "enrich {input.bed} {input.gene_go} {input.mstrg} "
-        "{output.refgenes} {output.result} "
+        "{output.refgenes} {output.bp} {output.mf} {output.cc} "
         "> {log} 2>&1"
 
 # ============================================================
-# Rule: build_kegg_maps — build gene→KEGG map once
+# Rule: build_kegg_maps — build gene->KEGG map once
 # ============================================================
 rule build_kegg_maps:
     input:
@@ -286,8 +289,11 @@ rule kegg_analysis:
 rule plots:
     input:
         multiinter   = os.path.join(OUT_BASE, "multiinter_output.bed"),
-        go_results   = expand(os.path.join(OUT_GO,   "{cat}_BP_GO_enrichment.txt"), cat=CATEGORIES),
-        kegg_results = expand(os.path.join(OUT_KEGG, "{cat}_KEGG_enrichment.txt"),  cat=CATEGORIES),
+        go_results   = expand(
+            os.path.join(OUT_GO, "{cat}_{dom}_GO_enrichment.txt"),
+            cat=CATEGORIES, dom=["BP", "MF", "CC"]
+        ),
+        kegg_results = expand(os.path.join(OUT_KEGG, "{cat}_KEGG_enrichment.txt"), cat=CATEGORIES),
     output:
         upset = os.path.join(OUT_PLOTS, "upset_plot.png"),
     conda: "envs/goanalysis.yaml"
@@ -296,4 +302,4 @@ rule plots:
     log:
         os.path.join(LOGS_DIR, "plots.log"),
     shell:
-        "Rscript scripts/05_plots.R > {log} 2>&1"
+        f"Rscript scripts/05_plots.R {SPECIES} > {{log}} 2>&1"

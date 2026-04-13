@@ -4,7 +4,7 @@
 # Reads config/config.yaml. Produces:
 #   - UpSet plot (all samples)
 #   - Region counts bar chart
-#   - GO enrichment bar plots per category
+#   - GO enrichment bar plots per category (BP/MF/CC panels)
 #   - KEGG bubble plot per category
 #
 # Usage:
@@ -20,7 +20,8 @@ suppressPackageStartupMessages({
 
 # ---- Load config --------------------------------------------
 config       <- yaml.load_file("config/config.yaml")
-SPECIES      <- config$default_species
+SPECIES      <- commandArgs(trailingOnly = TRUE)[1]
+if (is.na(SPECIES) || SPECIES == "") SPECIES <- config$default_species
 SP           <- config[[SPECIES]]
 
 SAMPLES      <- SP$samples$names
@@ -51,6 +52,13 @@ cat_colors <- c(
   "zygotic_embryo_specific" = "#FFD6CC"
 )
 
+# Domain colours — Pine 1 style
+domain_colors <- c(
+  "Biological Process" = "#4575B4",
+  "Molecular Function" = "#D73027",
+  "Cellular Component" = "#1A9850"
+)
+
 # Active categories (non-empty BED files)
 cats <- Filter(function(cat) {
   f <- file.path(OUT_BASE, paste0(cat, ".bed"))
@@ -60,14 +68,6 @@ cats <- Filter(function(cat) {
 msg("Species: ", SPECIES_NAME)
 msg("Samples: ", paste(SAMPLES, collapse = ", "))
 msg("Categories: ", paste(cats, collapse = ", "))
-
-# ---- Load pathway names for KEGG ----------------------------
-pw_names <- tryCatch(
-  read.table(file.path(OUT_KEGG, "kegg_pathway_names.txt"),
-             header = TRUE, sep = "\t", quote = "",
-             stringsAsFactors = FALSE),
-  error = function(e) NULL
-)
 
 # ============================================================
 # Plot 1: UpSet plot
@@ -111,11 +111,9 @@ bed_files <- c("conserved.bed", paste0(cats, ".bed"))
 
 counts <- sapply(bed_files, function(f) {
   full <- file.path(OUT_BASE, f)
-  if (file.exists(full) && file.info(full)$size > 0) {
+  if (file.exists(full) && file.info(full)$size > 0)
     nrow(read.table(full, header = FALSE, sep = "\t"))
-  } else {
-    0L
-  }
+  else 0L
 })
 
 count_df <- data.frame(
@@ -145,45 +143,94 @@ msg("  region_counts_bar.png done")
 
 # ============================================================
 # Plot 3: GO enrichment bar plots per category
+#
+# Style: faceted BP / MF / CC panels, top 5 terms each,
+# coloured by domain. Matches Pine 1 publication style.
 # ============================================================
 msg("Generating GO bar plots")
 
+TOP_GO_PER_DOMAIN <- 5
+
+domain_map <- c(
+  "BP" = "Biological Process",
+  "MF" = "Molecular Function",
+  "CC" = "Cellular Component"
+)
+
 for (cat in cats) {
-  go_file <- file.path(OUT_GO, paste0(cat, "_BP_GO_enrichment.txt"))
-  if (!file.exists(go_file) || file.info(go_file)$size == 0) {
-    msg("  Skipping ", cat, " GO — file missing or empty")
+
+  panels <- list()
+  for (domain_code in c("BP", "MF", "CC")) {
+    go_file <- file.path(OUT_GO, paste0(cat, "_", domain_code, "_GO_enrichment.txt"))
+    if (!file.exists(go_file) || file.info(go_file)$size == 0) next
+
+    df <- tryCatch(
+      read.table(go_file, header = TRUE, sep = "\t", quote = ""),
+      error = function(e) NULL
+    )
+    if (is.null(df) || nrow(df) == 0) next
+
+    df$pvalue <- as.numeric(df$pvalue)
+    df <- df[!is.na(df$pvalue), ]
+    if (nrow(df) == 0) next
+
+    df <- head(df[order(df$pvalue), ], TOP_GO_PER_DOMAIN)
+    df$Domain <- domain_map[[domain_code]]
+    panels[[domain_code]] <- df
+  }
+
+  if (length(panels) == 0) {
+    msg("  No GO results for ", cat, " — skipping")
     next
   }
 
-  go_df <- tryCatch(
-    read.table(go_file, header = TRUE, sep = "\t", quote = ""),
-    error = function(e) NULL
+  combined <- do.call(rbind, panels)
+  combined$Domain <- factor(combined$Domain,
+                            levels = c("Biological Process",
+                                       "Molecular Function",
+                                       "Cellular Component"))
+
+  # Preserve within-domain p-value ordering (best at top of each panel)
+  combined$Term <- factor(
+    combined$Term,
+    levels = rev(unlist(lapply(rev(levels(combined$Domain)), function(d) {
+      sub_df <- combined[combined$Domain == d, ]
+      as.character(sub_df$Term[order(sub_df$pvalue, decreasing = TRUE)])
+    })))
   )
-  if (is.null(go_df) || nrow(go_df) == 0) {
-    msg("  Skipping ", cat, " GO — no results")
-    next
+
+  # Gene count label
+  if ("Significant" %in% colnames(combined)) {
+    combined$count_label <- combined$Significant
+  } else {
+    combined$count_label <- ""
   }
 
-  go_df$pvalue <- as.numeric(go_df$pvalue)
-  go_df <- go_df[!is.na(go_df$pvalue), ]
-  go_df <- head(go_df[order(go_df$pvalue), ], 20)
-  go_df$Term <- factor(go_df$Term, levels = rev(go_df$Term))
+  p_go <- ggplot(combined, aes(x = -log10(pvalue), y = Term, fill = Domain)) +
+    geom_bar(stat = "identity", width = 0.7) +
+    geom_text(aes(label = count_label), hjust = -0.2, size = 3.5) +
+    scale_fill_manual(values = domain_colors) +
+    facet_wrap(~Domain, scales = "free_y", ncol = 1) +
+    labs(
+      title = paste0("GO Enrichment — ",
+                     gsub("_", " ", tools::toTitleCase(cat))),
+      x = "-log10(p-value)", y = NULL
+    ) +
+    theme_bw() +
+    theme(
+      strip.background = element_rect(fill = "#F0F0F0"),
+      strip.text       = element_text(face = "bold", size = 11),
+      axis.text.y      = element_text(size = 10),
+      axis.text.x      = element_text(size = 10),
+      plot.title       = element_text(hjust = 0.5, face = "bold", size = 13),
+      legend.position  = "none"
+    ) +
+    xlim(0, max(-log10(combined$pvalue), na.rm = TRUE) * 1.15)
 
-  fill_col <- ifelse(!is.na(cat_colors[cat]), cat_colors[cat], "#CCCCCC")
-
-  p_go <- ggplot(go_df, aes(x = Term, y = -log10(pvalue))) +
-    geom_col(fill = fill_col, color = "grey40", width = 0.7) +
-    coord_flip() +
-    theme_classic() +
-    labs(title = paste("GO enrichment (BP):", gsub("_", " ", cat)),
-         subtitle = SPECIES_NAME,
-         x = NULL, y = "-log10(p-value)") +
-    theme(axis.text.y = element_text(size = 8))
-
-  out_name <- paste0("GO_bar_", cat, ".png")
-  ggsave(file.path(OUT_PLOTS, out_name),
-         plot = p_go, width = 10, height = 6, dpi = 150)
-  msg("  ", out_name, " done")
+  out_file <- file.path(OUT_PLOTS, paste0("GO_bar_", cat, ".png"))
+  ggsave(out_file, plot = p_go,
+         width = 10, height = 4 * length(panels), dpi = 300)
+  msg("  GO_bar_", cat, ".png done (", length(panels), " panel(s))")
 }
 
 # ============================================================
@@ -207,36 +254,41 @@ for (cat in cats) {
     next
   }
 
-  # Join pathway names
-  if (!is.null(pw_names)) {
-    
-    kegg_df$name <- ifelse(is.na(kegg_df$name) | kegg_df$name == "",
-                           kegg_df$pathway_id, kegg_df$name)
-  } else {
-    kegg_df$name <- kegg_df$pathway_id
-  }
-
   kegg_df$pvalue <- as.numeric(kegg_df$pvalue)
-  kegg_df <- kegg_df[!is.na(kegg_df$pvalue), ]
+  kegg_df <- kegg_df[!is.na(kegg_df$pvalue) & kegg_df$pvalue > 0, ]
+  if (nrow(kegg_df) == 0) next
+
   kegg_df <- head(kegg_df[order(kegg_df$pvalue), ], 20)
   kegg_df$name <- factor(kegg_df$name, levels = rev(kegg_df$name))
 
-  fill_col <- ifelse(!is.na(cat_colors[cat]), cat_colors[cat], "#CCCCCC")
-
   p_kegg <- ggplot(kegg_df,
-                   aes(x = -log10(pvalue), y = name, size = in_category)) +
-    geom_point(color = fill_col, alpha = 0.8) +
-    theme_classic() +
-    labs(title = paste("KEGG enrichment:", gsub("_", " ", cat)),
-         subtitle = SPECIES_NAME,
-         x = "-log10(p-value)", y = NULL,
-         size = "Genes in category") +
-    theme(axis.text.y = element_text(size = 8))
+                   aes(x     = in_category / total,
+                       y     = name,
+                       size  = in_category,
+                       color = -log10(pvalue))) +
+    geom_point(alpha = 0.85) +
+    scale_color_gradientn(
+      colours = c("green3", "yellow2", "orange", "red3"),
+      name    = "-log10(p-value)"
+    ) +
+    scale_size_continuous(name = "Gene Count", range = c(3, 12)) +
+    labs(
+      title = paste0("KEGG Pathway Enrichment — ",
+                     gsub("_", " ", tools::toTitleCase(cat))),
+      x = "Gene Ratio", y = NULL
+    ) +
+    theme_bw() +
+    theme(
+      axis.text.y  = element_text(size = 10),
+      axis.text.x  = element_text(size = 10),
+      plot.title   = element_text(hjust = 0.5, face = "bold", size = 13),
+      legend.position = "right"
+    )
 
-  out_name <- paste0("KEGG_bubble_", cat, ".png")
-  ggsave(file.path(OUT_PLOTS, out_name),
-         plot = p_kegg, width = 10, height = 6, dpi = 150)
-  msg("  ", out_name, " done")
+  out_file <- file.path(OUT_PLOTS, paste0("KEGG_bubble_", cat, ".png"))
+  ggsave(out_file, plot = p_kegg,
+         width = 10, height = max(5, 0.35 * nrow(kegg_df) + 2), dpi = 300)
+  msg("  KEGG_bubble_", cat, ".png done")
 }
 
 close(con)

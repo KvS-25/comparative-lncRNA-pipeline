@@ -39,3 +39,13 @@
 - Fixed `scripts/04_kegg_analysis.R`: added `strip_isoform()` helper to match refgene IDs against KEGG annotation
 - Fixed `scripts/05_plots.R`: updated config parsing to use multi-species block structure (`config[[SPECIES]]`) instead of top-level keys; added `tryCatch` to handle empty GO/KEGG result files gracefully
 - Fixed `profiles/slurm/config.yaml`: replaced template placeholders with actual SLURM account
+## v1.5.2 — 2026-04-13
+
+### GO enrichment improvements
+
+- Added non-plant GO term filter to `03_go_analysis.R` — excludes animal/mammalian-specific terms (immune, neurological, hormonal) that bleed through from eggNOG cross-kingdom annotations
+- Extended GO enrichment to all three ontology domains (BP, MF, CC) — previously only BP was run
+- Updated Snakefile `go_analysis` rule to output BP, MF, and CC files per category
+- Updated `rule all` and `rule plots` input blocks to include MF and CC outputs
+- Updated `05_plots.R` GO bar plots to three-panel faceted style (BP/MF/CC), top 5 terms per domain, coloured by domain
+- Fixed `05_plots.R` to respect species passed via command line argument rather than always reading `default_species` from config
