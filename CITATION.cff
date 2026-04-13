@@ -10,7 +10,7 @@ authors:
     affiliation: "Umeå University"
 repository-code: "https://github.com/KvS-25/comparative-lncRNA-pipeline"
 license: MIT
-version: 1.5.1
+version: 1.5.2
 date-released: "2026-04-02"
 keywords:
   - bioinformatics

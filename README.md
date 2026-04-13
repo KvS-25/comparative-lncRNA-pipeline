@@ -1,7 +1,7 @@
 # comparative-lncRNA-pipeline
 
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
-![Version](https://img.shields.io/badge/version-1.5.1-blue)
+![Version](https://img.shields.io/badge/version-1.5.2-blue)
 ![Snakemake](https://img.shields.io/badge/workflow-Snakemake-1a9c3e?logo=snakemake)
 ![Language: R](https://img.shields.io/badge/language-R-276DC3?logo=r)
 ![Language: Bash](https://img.shields.io/badge/language-Bash-4EAA25?logo=gnubash)
